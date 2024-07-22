@@ -45,6 +45,10 @@ _C.MODEL.PIXEL_MEAN = [103.530, 116.280, 123.675]
 # Otherwise, you can use [57.375, 57.120, 58.395] (ImageNet std)
 _C.MODEL.PIXEL_STD = [1.0, 1.0, 1.0]
 
+_C.MODEL.UNFREEZE_SCHEDULE = []
+_C.MODEL.UNFREEZE_ITERS = []
+_C.MODEL.FREEZE_INCLUDE = []
+_C.MODEL.FREEZE_ALL_EXCLUDE = []
 
 # -----------------------------------------------------------------------------
 # INPUT
@@ -554,7 +558,7 @@ _C.SOLVER.RESCALE_INTERVAL = False
 
 # Save a checkpoint after every this number of iterations
 _C.SOLVER.CHECKPOINT_PERIOD = 5000
-
+_C.SOLVER.MAX_TO_KEEP = 10
 # Number of images per batch across all machines. This is also the number
 # of training images per step (i.e. per iteration). If we use 16 GPUs
 # and IMS_PER_BATCH = 32, each GPU will see 2 images per batch.
@@ -593,6 +597,12 @@ _C.SOLVER.CLIP_GRADIENTS.NORM_TYPE = 2.0
 # Note that this does not change model's inference behavior.
 # To use AMP in inference, run inference under autocast()
 _C.SOLVER.AMP = CN({"ENABLED": False})
+_C.SOLVER.LOSS_WEIGHTS = CN({
+            'loss_cls': 1.0,
+            'loss_box_reg': 1.0,
+            'loss_mask': 1.0,
+            'loss_rpn_cls': 1.0,
+            'loss_rpn_loc': 1.0})
 
 # ---------------------------------------------------------------------------- #
 # Specific test options
@@ -626,6 +636,8 @@ _C.TEST.PRECISE_BN.NUM_ITER = 200
 # ---------------------------------------------------------------------------- #
 # Directory where output files are written
 _C.OUTPUT_DIR = "./output"
+_C.EVAl_AFTER_TRAIN = False
+_C.WRITER_PERIOD = 20
 # Set seed to negative to fully randomize everything.
 # Set seed to positive to use a fixed seed. Note that a fixed seed increases
 # reproducibility but does not guarantee fully deterministic behavior.

@@ -39,6 +39,7 @@ __all__ = [
     "PreciseBN",
     "TorchProfiler",
     "TorchMemoryStats",
+    "UnfreezeHook"
 ]
 
 
@@ -688,3 +689,23 @@ class TorchMemoryStats(HookBase):
                     self._logger.info("\n" + mem_summary)
 
                 torch.cuda.reset_peak_memory_stats()
+
+class UnfreezeHook(HookBase):
+    def __init__(self, model, unfreeze_schedule, unfreeze_iters):
+        self.model = model
+        self.unfreeze_schedule = unfreeze_schedule
+        self.unfreeze_iters = unfreeze_iters
+        self.current_phase = 0
+        self._logger = logging.getLogger(__name__)
+
+
+    def after_step(self):
+        if self.current_phase < len(self.unfreeze_iters) and self.trainer.iter >= self.unfreeze_iters[self.current_phase]:
+            self.unfreeze_layers(self.unfreeze_schedule[self.current_phase])
+            self.current_phase += 1
+
+    def unfreeze_layers(self, layers_to_unfreeze):
+        for name, param in self.model.named_parameters():
+            if any(name.startswith(layer) for layer in layers_to_unfreeze):
+                param.requires_grad = True
+                self._logger.info(f"Unfreezing layer: {name}")

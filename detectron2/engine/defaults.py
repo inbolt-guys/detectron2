@@ -363,7 +363,7 @@ class DefaultTrainer(TrainerBase):
         cfg (CfgNode):
     """
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, mapper = None):
         """
         Args:
             cfg (CfgNode):
@@ -377,11 +377,13 @@ class DefaultTrainer(TrainerBase):
         # Assume these objects must be constructed in this order.
         model = self.build_model(cfg)
         optimizer = self.build_optimizer(cfg, model)
-        data_loader = self.build_train_loader(cfg)
+        data_loader = self.build_train_loader(cfg, mapper=mapper)
+
+        loss_weights = cfg.SOLVER.LOSS_WEIGHTS
 
         model = create_ddp_model(model, broadcast_buffers=False)
         self._trainer = (AMPTrainer if cfg.SOLVER.AMP.ENABLED else SimpleTrainer)(
-            model, data_loader, optimizer
+            model, data_loader, optimizer, loss_weights=loss_weights
         )
 
         self.scheduler = self.build_lr_scheduler(cfg, optimizer)
@@ -449,7 +451,7 @@ class DefaultTrainer(TrainerBase):
         # This is not always the best: if checkpointing has a different frequency,
         # some checkpoints may have more precise statistics than others.
         if comm.is_main_process():
-            ret.append(hooks.PeriodicCheckpointer(self.checkpointer, cfg.SOLVER.CHECKPOINT_PERIOD))
+            ret.append(hooks.PeriodicCheckpointer(self.checkpointer, cfg.SOLVER.CHECKPOINT_PERIOD, max_to_keep=cfg.SOLVER.MAX_TO_KEEP))
 
         def test_and_save_results():
             self._last_eval_results = self.test(self.cfg, self.model)
@@ -457,12 +459,18 @@ class DefaultTrainer(TrainerBase):
 
         # Do evaluation after checkpointer, because then if it fails,
         # we can use the saved checkpoint to debug.
-        ret.append(hooks.EvalHook(cfg.TEST.EVAL_PERIOD, test_and_save_results))
+        ret.append(hooks.EvalHook(cfg.TEST.EVAL_PERIOD, test_and_save_results, eval_after_train=cfg.EVAl_AFTER_TRAIN))
 
         if comm.is_main_process():
             # Here the default print/log frequency of each writer is used.
             # run writers in the end, so that evaluation metrics are written
-            ret.append(hooks.PeriodicWriter(self.build_writers(), period=20))
+            ret.append(hooks.PeriodicWriter(self.build_writers(), period=cfg.WRITER_PERIOD))
+
+        unfreeze_schedule = cfg.MODEL.UNFREEZE_SCHEDULE
+        if unfreeze_schedule is not None:
+            unfreeze_iters = cfg.MODEL.UNFREEZE_ITERS
+            assert len(unfreeze_schedule) == len(unfreeze_iters)
+            ret.append(hooks.UnfreezeHook(self.model, unfreeze_schedule, unfreeze_iters))
         return ret
 
     def build_writers(self):
@@ -483,6 +491,20 @@ class DefaultTrainer(TrainerBase):
         Returns:
             OrderedDict of results, if evaluation is enabled. Otherwise None.
         """
+        assert not(len(self.cfg.MODEL.FREEZE_INCLUDE)>0 and len(self.cfg.MODEL.FREEZE_ALL_EXCLUDE)>0), "Cannot use FREEZE_INCLUDE when FREEZE_ALL_EXCLUDE is used"
+        if self.cfg.MODEL.FREEZE_INCLUDE:
+            for name, param in self.model.named_parameters():
+                if any(layer in name for layer in self.cfg.MODEL.FREEZE_INCLUDE):
+                    param.requires_grad = False
+                    logger = logging.getLogger(__name__)
+                    logger.info(f"Froze:{name}")
+        elif self.cfg.MODEL.FREEZE_ALL_EXCLUDE:
+            for name, param in self.model.named_parameters():
+                if not(any(layer in name for layer in self.cfg.MODEL.FREEZE_ALL_EXCLUDE)):
+                    param.requires_grad = False   
+                    logger = logging.getLogger(__name__)
+                    logger.info(f"Froze:{name}")
+
         super().train(self.start_iter, self.max_iter)
         if len(self.cfg.TEST.EXPECTED_RESULTS) and comm.is_main_process():
             assert hasattr(
@@ -538,7 +560,7 @@ class DefaultTrainer(TrainerBase):
         return build_lr_scheduler(cfg, optimizer)
 
     @classmethod
-    def build_train_loader(cls, cfg):
+    def build_train_loader(cls, cfg, mapper=None):
         """
         Returns:
             iterable
@@ -546,7 +568,7 @@ class DefaultTrainer(TrainerBase):
         It now calls :func:`detectron2.data.build_detection_train_loader`.
         Overwrite it if you'd like a different data loader.
         """
-        return build_detection_train_loader(cfg)
+        return build_detection_train_loader(cfg, mapper=mapper)
 
     @classmethod
     def build_test_loader(cls, cfg, dataset_name):

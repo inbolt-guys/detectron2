@@ -250,6 +250,7 @@ class SimpleTrainer(TrainerBase):
         gather_metric_period=1,
         zero_grad_before_forward=False,
         async_write_metrics=False,
+        loss_weights = None
     ):
         """
         Args:
@@ -272,6 +273,17 @@ class SimpleTrainer(TrainerBase):
         like evaluation during training, you can overwrite its train() method.
         """
         model.train()
+        if loss_weights is None: #For backward compatibility
+            self.loss_weights = {
+                'loss_cls': 1.0,
+                'loss_box_reg': 1.0,
+                'loss_mask': 1.0,  
+                'loss_rpn_cls': 1.0,
+                'loss_rpn_loc': 1.0,
+                }
+        else:
+            self.loss_weights = loss_weights
+
 
         self.model = model
         self.data_loader = data_loader
@@ -312,7 +324,13 @@ class SimpleTrainer(TrainerBase):
             losses = loss_dict
             loss_dict = {"total_loss": loss_dict}
         else:
-            losses = sum(loss_dict.values())
+            losses = (
+                self.loss_weights['loss_cls'] * loss_dict['loss_cls'] +
+                self.loss_weights['loss_box_reg'] * loss_dict['loss_box_reg'] +
+                self.loss_weights['loss_mask'] * loss_dict['loss_mask'] +
+                self.loss_weights['loss_rpn_cls'] * loss_dict['loss_rpn_cls'] +
+                self.loss_weights['loss_rpn_loc'] * loss_dict['loss_rpn_loc'])
+            
         if not self.zero_grad_before_forward:
             """
             If you need to accumulate gradients or do something similar, you can
@@ -451,6 +469,7 @@ class AMPTrainer(SimpleTrainer):
         precision: torch.dtype = torch.float16,
         log_grad_scaler: bool = False,
         async_write_metrics=False,
+        loss_weights = None
     ):
         """
         Args:
@@ -459,6 +478,16 @@ class AMPTrainer(SimpleTrainer):
             grad_scaler: torch GradScaler to automatically scale gradients.
             precision: torch.dtype as the target precision to cast to in computations
         """
+        if loss_weights is None:
+            self.loss_weights = {
+            'loss_cls': 1.0,
+            'loss_box_reg': 1.0,
+            'loss_mask': 1.0,
+            'loss_rpn_cls': 1.0,
+            'loss_rpn_loc': 1.0}
+        else:
+            self.loss_weights = loss_weights
+
         unsupported = "AMPTrainer does not support single-process multi-device training!"
         if isinstance(model, DistributedDataParallel):
             assert not (model.device_ids and len(model.device_ids) > 1), unsupported
@@ -496,7 +525,12 @@ class AMPTrainer(SimpleTrainer):
                 losses = loss_dict
                 loss_dict = {"total_loss": loss_dict}
             else:
-                losses = sum(loss_dict.values())
+                losses = (
+                    self.loss_weights['loss_cls'] * loss_dict['loss_cls'] +
+                    self.loss_weights['loss_box_reg'] * loss_dict['loss_box_reg'] +
+                    self.loss_weights['loss_mask'] * loss_dict['loss_mask'] +
+                    self.loss_weights['loss_rpn_cls'] * loss_dict['loss_rpn_cls'] +
+                    self.loss_weights['loss_rpn_loc'] * loss_dict['loss_rpn_loc'])
 
         if not self.zero_grad_before_forward:
             self.optimizer.zero_grad()

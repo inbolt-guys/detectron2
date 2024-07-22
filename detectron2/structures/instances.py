@@ -3,6 +3,7 @@ import itertools
 import warnings
 from typing import Any, Dict, List, Tuple, Union
 import torch
+from detectron2.structures import Boxes
 
 
 class Instances:
@@ -151,7 +152,7 @@ class Instances:
         raise NotImplementedError("`Instances` object is not iterable!")
 
     @staticmethod
-    def cat(instance_lists: List["Instances"]) -> "Instances":
+    def cat(instance_lists: List["Instances"], secondInstanceIsGTAndisSecondBackbone: bool = False) -> "Instances":
         """
         Args:
             instance_lists (list[Instances])
@@ -163,6 +164,9 @@ class Instances:
         assert len(instance_lists) > 0
         if len(instance_lists) == 1:
             return instance_lists[0]
+        if secondInstanceIsGTAndisSecondBackbone:
+            assert len(instance_lists) == 2, "the list of instances is not proposals and gt, shouldn't have secondInstanceIsGTAndisSecondBackbone as True"
+            assert hasattr(instance_lists[1], "gt_boxes"), "gt instances does not contains gt_boxes"
 
         image_size = instance_lists[0].image_size
         if not isinstance(image_size, torch.Tensor):  # could be a tensor in tracing
@@ -176,6 +180,8 @@ class Instances:
                 values = torch.cat(values, dim=0)
             elif isinstance(v0, list):
                 values = list(itertools.chain(*values))
+            elif isinstance(v0, Boxes):
+                values = Boxes.cat(values, secondInstanceIsGTAndisSecondBackbone)
             elif hasattr(type(v0), "cat"):
                 values = type(v0).cat(values)
             else:

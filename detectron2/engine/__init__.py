@@ -15,5 +15,9 @@ from .defaults import (
     default_setup,
     default_writers,
     DefaultPredictor,
+    RGBDPredictor,
     DefaultTrainer,
+    RGBDTrainer,
+    DepthTrainer,
+    DepthPredictor,
 )

@@ -28,6 +28,7 @@ def find_top_rpn_proposals(
     post_nms_topk: int,
     min_box_size: float,
     training: bool,
+    doubleBackbone: bool = False
 ):
     """
     For each feature map, select the `pre_nms_topk` highest scoring proposals,
@@ -128,15 +129,19 @@ def find_top_rpn_proposals(
         # This bug is addressed in Detectron2 to make the behavior independent of batch size.
         keep = keep[:post_nms_topk]  # keep is already sorted
 
+        kept_boxes = boxes[keep]
+        if doubleBackbone:
+            kept_boxes.isSecondBackbone = move_device_like(lvl[keep] >= (level_id + 1) / 2, proposals[0])
+
         res = Instances(image_size)
-        res.proposal_boxes = boxes[keep]
+        res.proposal_boxes = kept_boxes
         res.objectness_logits = scores_per_img[keep]
         results.append(res)
     return results
 
 
 def add_ground_truth_to_proposals(
-    gt: Union[List[Instances], List[Boxes]], proposals: List[Instances]
+    gt: Union[List[Instances], List[Boxes]], proposals: List[Instances], has2backbones: bool = False
 ) -> List[Instances]:
     """
     Call `add_ground_truth_to_proposals_single_image` for all images.
@@ -159,13 +164,13 @@ def add_ground_truth_to_proposals(
         return proposals
 
     return [
-        add_ground_truth_to_proposals_single_image(gt_i, proposals_i)
+        add_ground_truth_to_proposals_single_image(gt_i, proposals_i, has2backbones)
         for gt_i, proposals_i in zip(gt, proposals)
     ]
 
 
 def add_ground_truth_to_proposals_single_image(
-    gt: Union[Instances, Boxes], proposals: Instances
+    gt: Union[Instances, Boxes], proposals: Instances, has2backbones: bool = False
 ) -> Instances:
     """
     Augment `proposals` with `gt`.
@@ -200,6 +205,6 @@ def add_ground_truth_to_proposals_single_image(
 
     # NOTE: Instances.cat only use fields from the first item. Extra fields in latter items
     # will be thrown away.
-    new_proposals = Instances.cat([proposals, gt_proposal])
+    new_proposals = Instances.cat([proposals, gt_proposal], has2backbones)
 
     return new_proposals

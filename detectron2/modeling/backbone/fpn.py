@@ -243,6 +243,193 @@ def build_resnet_fpn_backbone(cfg, input_shape: ShapeSpec):
     )
     return backbone
 
+class DFPN(Backbone):
+    """
+    Double FPN for BGR and Depth / Normals
+    """
+
+
+    def __init__(
+        self,
+        fpnRGB,
+        fpnDepth,
+        mode: str = "simple",
+        conv_dims: List[int] = (-1,),
+        fusion_out_channels: int = -1
+    ):
+        super(DFPN, self).__init__()
+        assert isinstance(fpnRGB, FPN) and isinstance(fpnDepth, FPN)
+        assert mode in ["simple", "conv", "cat", "late_fpn"]
+
+        self.fpnRGB = fpnRGB
+        self.fpnDepth = fpnDepth
+        self.mode = mode
+        
+        if mode == "conv":
+            self.convs = nn.ModuleDict()
+            fpnRGB_output_shapes = self.fpnRGB.output_shape()
+            fpnDepth_output_shapes = self.fpnDepth.output_shape()
+            for name in fpnRGB_output_shapes:
+                cur_channels = fpnRGB_output_shapes[name].channels + fpnDepth_output_shapes[name].channels
+                if len(conv_dims) == 1:
+                    out_channels = cur_channels if conv_dims[0] == -1 else conv_dims[0]
+                    # 3x3 conv for the hidden representation
+                    self.convs[name] = self._get_conv(cur_channels, out_channels)
+                    cur_channels = out_channels
+                else:
+                    self.convs[name] = nn.Sequential()
+                    for k, conv_dim in enumerate(conv_dims):
+                        out_channels = cur_channels if conv_dim == -1 else conv_dim
+                        if out_channels <= 0:
+                            raise ValueError(
+                                f"Conv output channels should be greater than 0. Got {out_channels}"
+                            )
+                        conv = self._get_conv(cur_channels, out_channels)
+                        self.convs[name].add_module(f"conv{k}", conv)
+                        cur_channels = out_channels
+            self.conv_out_channels = out_channels
+        elif mode == "late_fpn":
+            self.fusion_layers = nn.ModuleDict()
+            fpnRGB_output_shapes = self.fpnRGB.output_shape()
+            fpnDepth_output_shapes = self.fpnDepth.output_shape()
+            for name in fpnRGB_output_shapes:
+                rgb_shape = fpnRGB_output_shapes[name]
+                depth_shape = fpnDepth_output_shapes[name]
+                if fusion_out_channels == -1:
+                    fusion_out_channels = rgb_shape.channels + depth_shape.channels
+                self.fusion_layers[name] = FusionLayer(rgb_shape.channels, depth_shape.channels, fusion_out_channels, attention=True)
+
+                
+
+    def _get_conv(self, in_channels, out_channels):
+        return Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            activation=nn.ReLU(),
+        )
+
+    @property
+    def size_divisibility(self):
+        assert self.fpnRGB.size_divisibility == self.fpnDepth.size_divisibility
+        return self.fpnRGB.size_divisibility
+
+    @property
+    def padding_constraints(self):
+        assert self.fpnRGB._square_pad == self.fpnDepth._square_pad
+        return {"square_size": self.fpnRGB._square_pad}
+
+    def forward(self, rgb, depth):
+        """
+        Args:
+            input (dict[str->Tensor]): mapping feature map name (e.g., "res5") to
+                feature map tensor for each feature level in high to low resolution order.
+
+        Returns:
+            dict[str->Tensor]:
+                mapping from feature map name to FPN feature map tensor
+                in high to low resolution order. Returned feature names follow the FPN
+                paper convention: "p<stage>", where stage has stride = 2 ** stage e.g.,
+                ["p2", "p3", ..., "p6"].
+        """
+        fpnFeaturesRGB = self.fpnRGB(rgb)
+        fpnFeaturesDepth = self.fpnDepth(depth)
+
+        out = {}
+        if self.mode == "simple":
+            for f, v in fpnFeaturesRGB.items():
+                out[f+"c"] = v
+            for f, v in fpnFeaturesDepth.items():
+                out[f+"d"] = v
+            assert len(out) == len(self.fpnRGB._out_features) + len(self.fpnDepth._out_features)
+        elif self.mode == "cat":
+            for f in fpnFeaturesRGB:
+                out[f] = torch.cat((fpnFeaturesRGB[f], fpnFeaturesDepth[f]), dim=1)
+            assert len(out) == len(self.fpnRGB._out_features) == len(self.fpnDepth._out_features)
+        elif self.mode == "conv":
+            for f in fpnFeaturesRGB:
+                out[f] = self.convs[f](torch.cat((fpnFeaturesRGB[f], fpnFeaturesDepth[f]), dim=1))
+        elif self.mode == "late_fpn":
+            for f in fpnFeaturesRGB:
+                out[f] = self.fusion_layers[f](fpnFeaturesRGB[f], fpnFeaturesDepth[f])
+        return out
+
+    def output_shape(self):
+        out = {}
+        if self.mode == "simple":
+            for f, v in self.fpnRGB.output_shape().items():
+                out[f+"c"] = v
+            for f, v in self.fpnDepth.output_shape().items():
+                out[f+"d"] = v
+        elif self.mode == "cat":
+            rgb_shape = self.fpnRGB.output_shape()
+            depth_shape = self.fpnDepth.output_shape()
+            for f in rgb_shape:
+                assert rgb_shape[f].stride == depth_shape[f].stride 
+                out[f] = ShapeSpec(channels=rgb_shape[f].channels + depth_shape[f].channels, stride=rgb_shape[f].stride)
+        elif self.mode == "conv":
+            assert self.conv_out_channels > 0
+            rgb_shape = self.fpnRGB.output_shape()
+            for f in rgb_shape:
+                out[f] = ShapeSpec(channels=self.conv_out_channels, stride=rgb_shape[f].stride)
+        elif self.mode == "late_fpn":
+            rgb_shape = self.fpnRGB.output_shape()
+            for f in rgb_shape:
+                out[f] = ShapeSpec(channels=self.fusion_layers[f].out_channels, stride=rgb_shape[f].stride)
+        return out
+
+
+@BACKBONE_REGISTRY.register()
+def build_resnet_double_fpn_backbone(cfg, input_shape: ShapeSpec):
+    """
+    Args:
+        cfg: a detectron2 CfgNode
+
+    Returns:
+        backbone (Backbone): backbone module, must be a subclass of :class:`Backbone`.
+    """
+    if cfg.INPUT.FORMAT == "RGBD" or cfg.INPUT.FORMAT == "RGBRD":
+        bottom_upRGB = build_resnet_backbone(cfg, ShapeSpec(channels=3))
+        freeze_at = cfg.MODEL.BACKBONE.FREEZE_AT
+        cfg.MODEL.BACKBONE.FREEZE_AT = cfg.MODEL.BACKBONE.FREEZE_AT_DEPTH
+        bottom_upDepth = build_resnet_backbone(cfg, ShapeSpec(channels=1))
+        cfg.MODEL.BACKBONE.FREEZE_AT = freeze_at
+    elif cfg.INPUT.FORMAT == "GN":
+        bottom_upRGB = build_resnet_backbone(cfg, ShapeSpec(channels=1))
+        cfg.MODEL.BACKBONE.FREEZE_AT = cfg.MODEL.BACKBONE.FREEZE_AT_DEPTH
+        bottom_upDepth = build_resnet_backbone(cfg, ShapeSpec(channels=3))
+        cfg.MODEL.BACKBONE.FREEZE_AT = freeze_at
+    else:
+        raise ValueError(cfg.INPUT.FORMAT, "cfg.INPUT.FORMAT must be in RGBD, RGBN, GD, GN")
+    in_features = cfg.MODEL.FPN.IN_FEATURES
+    out_channels = cfg.MODEL.FPN.OUT_CHANNELS
+    fpnRGB = FPN(
+        bottom_up=bottom_upRGB,
+        in_features=in_features,
+        out_channels=out_channels,
+        norm=cfg.MODEL.FPN.NORM,
+        top_block=LastLevelMaxPool(),
+        fuse_type=cfg.MODEL.FPN.FUSE_TYPE,
+    )
+    fpnDepth = FPN(
+        bottom_up=bottom_upDepth,
+        in_features=in_features,
+        out_channels=out_channels,
+        norm=cfg.MODEL.FPN.NORM,
+        top_block=LastLevelMaxPool(),
+        fuse_type=cfg.MODEL.FPN.FUSE_TYPE,
+    )
+    backbone = DFPN(
+        fpnRGB = fpnRGB,
+        fpnDepth = fpnDepth,
+        mode = cfg.MODEL.BACKBONE.MODE,
+        conv_dims=cfg.MODEL.BACKBONE.CONV_DIMS if cfg.MODEL.BACKBONE.MODE == "conv" else None,
+        fusion_out_channels=cfg.MODEL.BACKBONE.FUSION_OUT_CHANNELS if cfg.MODEL.BACKBONE.MODE == "late_fpn" else None
+    )
+    return backbone
+
 
 @BACKBONE_REGISTRY.register()
 def build_retinanet_resnet_fpn_backbone(cfg, input_shape: ShapeSpec):

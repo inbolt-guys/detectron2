@@ -1,5 +1,6 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
 import math
+from typing import List
 import fvcore.nn.weight_init as weight_init
 import torch
 import torch.nn.functional as F
@@ -10,6 +11,7 @@ from detectron2.layers import Conv2d, ShapeSpec, get_norm
 from .backbone import Backbone
 from .build import BACKBONE_REGISTRY
 from .resnet import build_resnet_backbone
+from .double_resnet import build_double_resnet_backbone
 
 __all__ = ["build_resnet_fpn_backbone", "build_retinanet_resnet_fpn_backbone", "FPN"]
 
@@ -123,7 +125,7 @@ class FPN(Backbone):
     def padding_constraints(self):
         return {"square_size": self._square_pad}
 
-    def forward(self, x):
+    def forward(self, x, x2=None):
         """
         Args:
             input (dict[str->Tensor]): mapping feature map name (e.g., "res5") to
@@ -136,7 +138,10 @@ class FPN(Backbone):
                 paper convention: "p<stage>", where stage has stride = 2 ** stage e.g.,
                 ["p2", "p3", ..., "p6"].
         """
-        bottom_up_features = self.bottom_up(x)
+        if x2 is None:
+            bottom_up_features = self.bottom_up(x)
+        else:
+            bottom_up_features = self.bottom_up(x, x2)
         results = []
         prev_features = self.lateral_convs[0](bottom_up_features[self.in_features[-1]])
         results.append(self.output_convs[0](prev_features))
@@ -242,6 +247,36 @@ def build_resnet_fpn_backbone(cfg, input_shape: ShapeSpec):
         fuse_type=cfg.MODEL.FPN.FUSE_TYPE,
     )
     return backbone
+
+class FusionLayer(nn.Module):
+    def __init__(self, in_channels_rgb, in_channels_depth, out_channels, attention = False):
+        super().__init__()
+        self.attention = attention
+        self.out_channels = out_channels
+        self.rgb_conv = nn.Conv2d(in_channels_rgb, out_channels, kernel_size=1)
+        self.depth_conv = nn.Conv2d(in_channels_depth, out_channels, kernel_size=1)
+        if attention:
+            self.attention_conv = nn.Conv2d(2 * out_channels, 2, kernel_size=1)
+        self.fusion_conv = nn.Conv2d(2 * out_channels, out_channels, kernel_size=1)
+    
+    def forward(self, rgb_features, depth_features):
+        rgb_transformed = self.rgb_conv(rgb_features)
+        depth_transformed = self.depth_conv(depth_features)
+        concatenated_features = torch.cat([rgb_transformed, depth_transformed], dim=1)
+        if self.attention:
+            attention_weights = torch.sigmoid(self.attention_conv(concatenated_features))
+            rgb_weight = attention_weights[:, 0:1, :, :]
+            depth_weight = attention_weights[:, 1:2, :, :]
+
+            weighted_rgb = rgb_weight * rgb_transformed
+            weighted_depth = depth_weight * depth_transformed
+            
+            fused_features = torch.cat([weighted_rgb, weighted_depth], dim=1)
+            fused_features = self.fusion_conv(fused_features)
+            return fused_features
+        else:
+            fused_features = self.fusion_conv(concatenated_features)
+            return fused_features
 
 class DFPN(Backbone):
     """
@@ -430,6 +465,32 @@ def build_resnet_double_fpn_backbone(cfg, input_shape: ShapeSpec):
     )
     return backbone
 
+@BACKBONE_REGISTRY.register()
+def build_double_resnet_fpn_backbone(cfg, input_shape: ShapeSpec):
+    """
+    Args:
+        cfg: a detectron2 CfgNode
+
+    Returns:
+        backbone (Backbone): backbone module, must be a subclass of :class:`Backbone`.
+    """
+    if cfg.INPUT.FORMAT == "RGBD" or cfg.INPUT.FORMAT == "RGBRD":
+        bottom_up = build_double_resnet_backbone(cfg, ShapeSpec(channels=3), ShapeSpec(channels=1))
+    elif cfg.INPUT.FORMAT == "GN":
+        bottom_up = build_double_resnet_backbone(cfg, ShapeSpec(channels=1), ShapeSpec(channels=3))
+    else:
+        raise ValueError(cfg.INPUT.FORMAT, "cfg.INPUT.FORMAT must be in RGBD, RGBRD, GN")
+    in_features = cfg.MODEL.FPN.IN_FEATURES
+    out_channels = cfg.MODEL.FPN.OUT_CHANNELS
+    backbone = FPN(
+        bottom_up=bottom_up,
+        in_features=in_features,
+        out_channels=out_channels,
+        norm=cfg.MODEL.FPN.NORM,
+        top_block=LastLevelMaxPool(),
+        fuse_type=cfg.MODEL.FPN.FUSE_TYPE,
+    )
+    return backbone
 
 @BACKBONE_REGISTRY.register()
 def build_retinanet_resnet_fpn_backbone(cfg, input_shape: ShapeSpec):

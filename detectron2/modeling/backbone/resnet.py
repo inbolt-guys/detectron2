@@ -406,6 +406,7 @@ class ResNet(Backbone):
             self.add_module(name, stage)
             self.stage_names.append(name)
             self.stages.append(stage)
+            stage.out_channels = blocks[-1].out_channels
 
             self._out_feature_strides[name] = current_stride = int(
                 current_stride * np.prod([k.stride for k in blocks])

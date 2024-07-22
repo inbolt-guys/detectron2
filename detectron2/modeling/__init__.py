@@ -10,6 +10,7 @@ from .backbone import (
     ResNetBlockBase,
     build_backbone,
     build_resnet_backbone,
+    build_double_resnet_backbone,
     make_stage,
     ViT,
     SimpleFeaturePyramid,

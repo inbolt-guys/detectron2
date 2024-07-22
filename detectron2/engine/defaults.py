@@ -871,6 +871,221 @@ Alternatively, you can call evaluation functions yourself (see Colab balloon tut
             cfg.freeze()
         return cfg
 
+class RGBDTrainer(DefaultTrainer):
+    """
+    We use the "DefaultTrainer" which contains a number pre-defined logic for
+    standard training workflow. They may not work for you, especially if you
+    are working on a new research project. In that case you can use the cleaner
+    "SimpleTrainer", or write your own training loop.
+    """
+
+    @classmethod
+    def get_depth_mapper(cls, cfg):
+        def depth_mapper(dataset_dict):
+            input_format = cfg.INPUT.FORMAT
+            # it will be modified by code below
+            dataset_dict = copy.deepcopy(dataset_dict)
+            data = cv2.imread(dataset_dict["file_name"], cv2.IMREAD_UNCHANGED)
+            #data[:, :, 3] = np.zeros(data.shape[:2])
+            #data = Image.fromarray(data)
+            if input_format == "RGBD":
+                data[..., [0, 2]] = data[..., [2, 0]]
+            elif input_format == "RGBRD":
+                data[..., [0, 2]] = data[..., [2, 0]]
+                data = data.astype(np.float32)          
+            
+            min_size = cfg.INPUT.MIN_SIZE_TRAIN
+            max_size = cfg.INPUT.MAX_SIZE_TRAIN
+            sample_style = "choice"
+                                
+            transform_list = [
+                T.ResizeShortestEdge(min_size, max_size, sample_style),
+                T.RandomBrightness(0.8, 1.8, input_format),
+                T.RandomContrast(0.7, 1.6, input_format),
+                T.RandomSaturation(0.6, 1.8, input_format),
+                #T.RandomRotation(angle=[-180, 180]),
+                T.RandomLighting(0.7, input_format),
+                T.RandomFlip(prob=0.4, horizontal=False, vertical=True),
+            ]
+
+            utils.check_image_size(dataset_dict, data)
+
+
+            image, transforms = T.apply_transform_gens(transform_list, data)
+            dataset_dict["image"] = torch.as_tensor(image.transpose(2, 0, 1).astype("float32"))
+            #print(dataset_dict["image"].shape)
+            #print(dataset_dict["height"], dataset_dict["width"])
+            annos = [
+                utils.transform_instance_annotations(obj, transforms, image.shape[:2])
+                for obj in dataset_dict.pop("annotations")
+                if obj.get("iscrowd", 0) == 0
+            ]
+            instances = utils.annotations_to_instances(annos, image.shape[:2])
+            dataset_dict["instances"] = utils.filter_empty_instances(instances)
+            return dataset_dict
+
+        return depth_mapper
+        
+    @classmethod
+    def get_test_depth_mapper(cls, cfg):
+        def depth_mapper(dataset_dict):
+            input_format = cfg.INPUT.FORMAT
+            dataset_dict = copy.deepcopy(dataset_dict)
+            data = cv2.imread(dataset_dict["file_name"], cv2.IMREAD_UNCHANGED)
+            if input_format == "RGBD":
+                data[..., [0, 2]] = data[..., [2, 0]]
+            elif input_format == "RGBRD":
+                data[..., [0, 2]] = data[..., [2, 0]]
+                data = data.astype(np.float32)    
+
+            min_size = cfg.INPUT.MIN_SIZE_TEST
+            max_size = cfg.INPUT.MAX_SIZE_TEST
+            sample_style = "choice"
+
+            transform_list = [
+                T.ResizeShortestEdge(min_size, max_size, sample_style),
+            ]
+            image, transforms = T.apply_transform_gens(transform_list, data)
+
+            dataset_dict["image"] = torch.as_tensor(image.transpose(2, 0, 1).astype("float32"))
+
+            annos = [
+                utils.transform_instance_annotations(obj, transforms, image.shape[:2])
+                for obj in dataset_dict.pop("annotations")
+                if obj.get("iscrowd", 0) == 0
+            ]
+            instances = utils.annotations_to_instances(annos, data.shape[:2])
+            dataset_dict["instances"] = utils.filter_empty_instances(instances)
+            return dataset_dict
+
+        return depth_mapper
+    
+    
+
+    @classmethod
+    def build_train_loader(cls, cfg, mapper=None):
+        if mapper is None:
+            mapper = cls.get_depth_mapper(cfg)
+        return build_detection_train_loader(cfg, mapper=mapper)
+
+    @classmethod
+    def build_test_loader(cls, cfg, dataset_name):
+        mapper = cls.get_test_depth_mapper(cfg)
+        return build_detection_test_loader(cfg, dataset_name, mapper=mapper)
+    
+    @classmethod
+    def build_evaluator(cls, cfg, dataset_name):
+        return COCOEvaluator(dataset_name)
+
+    
+class DepthTrainer(DefaultTrainer):
+    """
+    We use the "DefaultTrainer" which contains a number pre-defined logic for
+    standard training workflow. They may not work for you, especially if you
+    are working on a new research project. In that case you can use the cleaner
+    "SimpleTrainer", or write your own training loop.
+    """
+
+    @classmethod
+    def get_depth_mapper(cls, cfg):
+        def depth_mapper(dataset_dict):
+            input_format = cfg.INPUT.FORMAT
+            # it will be modified by code below                
+            dataset_dict = copy.deepcopy(dataset_dict)
+            data = cv2.imread(dataset_dict["file_name"], cv2.IMREAD_UNCHANGED)
+            if data is None:
+                print("data is None:", dataset_dict["file_name"], flush=True)
+            if data.shape[2] == 4:
+                if input_format == "D":
+                    data = data[:, :, 3:]
+                elif input_format == "RD":
+                    data = data[:, :, 3:].astype(np.float32)
+                elif input_format == "N":
+                    data = np.copy(data[:, :, 1:])
+            else:
+                raise NotImplementedError("data is not 4 channels")
+            
+            min_size = cfg.INPUT.MIN_SIZE_TRAIN
+            max_size = cfg.INPUT.MAX_SIZE_TRAIN
+            sample_style = "choice"
+            transform_list = [
+                T.ResizeShortestEdge(min_size, max_size, sample_style),#it makes the array unwriteable for some reasons
+                #T.RandomRotation(angle=[-180, 180]),
+                #T.Resize((480, 640)),
+                T.RandomFlip(prob=0.4, horizontal=False, vertical=True),
+            ]
+
+            image, transforms = T.apply_transform_gens(transform_list, data)
+            """if input_format == "D": 
+                image = image[:, :, np.newaxis]"""
+            dataset_dict["image"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1).astype("float32")))
+
+            annos = [
+                utils.transform_instance_annotations(obj, transforms, image.shape[:2])
+                for obj in dataset_dict.pop("annotations")
+                if obj.get("iscrowd", 0) == 0
+            ]
+            instances = utils.annotations_to_instances(annos, image.shape[:2])
+            dataset_dict["instances"] = utils.filter_empty_instances(instances)
+            return dataset_dict
+
+        return depth_mapper
+    
+    @classmethod
+    def get_test_depth_mapper(cls, cfg):
+        def depth_mapper(dataset_dict):
+            input_format = cfg.INPUT.FORMAT
+            # it will be modified by code below                
+            dataset_dict = copy.deepcopy(dataset_dict)
+            data = cv2.imread(dataset_dict["file_name"], cv2.IMREAD_UNCHANGED)
+            if data is None:
+                print("data is None:", dataset_dict["file_name"], flush=True)
+            if data.shape[2] == 4:
+                if input_format == "D":
+                    data = data[:, :, 3:]
+                elif input_format == "RD":
+                    data = data[:, :, 3:].astype(np.float32)
+                elif input_format == "N":
+                    data = data[:, :, 1:]
+            else:
+                raise NotImplementedError("data is not 4 channels")
+            
+            min_size = cfg.INPUT.MIN_SIZE_TEST
+            max_size = cfg.INPUT.MAX_SIZE_TEST
+            sample_style = "choice"
+            transform_list = [
+                T.ResizeShortestEdge(min_size, max_size, sample_style),
+            ]
+
+            image, transforms = T.apply_transform_gens(transform_list, data)
+            dataset_dict["image"] = torch.as_tensor(image.transpose(2, 0, 1).astype("float32"))
+
+            annos = [
+                utils.transform_instance_annotations(obj, transforms, image.shape[:2])
+                for obj in dataset_dict.pop("annotations")
+                if obj.get("iscrowd", 0) == 0
+            ]
+            instances = utils.annotations_to_instances(annos, image.shape[:2])
+            dataset_dict["instances"] = utils.filter_empty_instances(instances)
+            return dataset_dict
+
+        return depth_mapper
+
+    @classmethod
+    def build_train_loader(cls, cfg, mapper=None):
+        if mapper is None:
+            mapper = cls.get_depth_mapper(cfg)
+        return build_detection_train_loader(cfg, mapper=mapper)
+
+    @classmethod
+    def build_test_loader(cls, cfg, dataset_name):
+        mapper = cls.get_test_depth_mapper(cfg)
+        return build_detection_test_loader(cfg, dataset_name, mapper=mapper)
+    
+    @classmethod
+    def build_evaluator(cls, cfg, dataset_name):
+        return COCOEvaluator(dataset_name)
+
 
 # Access basic attributes from the underlying trainer
 for _attr in ["model", "data_loader", "optimizer"]:

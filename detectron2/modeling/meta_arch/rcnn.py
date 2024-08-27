@@ -4,6 +4,7 @@ import numpy as np
 from typing import Dict, List, Optional, Tuple
 import torch
 from torch import nn
+import time
 
 from detectron2.config import configurable
 from detectron2.data.detection_utils import convert_image_to_rgb
@@ -199,22 +200,27 @@ class GeneralizedRCNN(nn.Module):
             Otherwise, a list[Instances] containing raw network outputs.
         """
         assert not self.training
-
+        start_time = time.time()
         images = self.preprocess_image(batched_inputs)
         features = self.backbone(images.tensor)
+        backbone_time = time.time()
 
         if detected_instances is None:
             if self.proposal_generator is not None:
                 proposals, _ = self.proposal_generator(images, features, None)
+                rpn_time = time.time()
             else:
                 assert "proposals" in batched_inputs[0]
                 proposals = [x["proposals"].to(self.device) for x in batched_inputs]
 
             results, _ = self.roi_heads(images, features, proposals, None)
+            roi_time = time.time()
         else:
             detected_instances = [x.to(self.device) for x in detected_instances]
             results = self.roi_heads.forward_with_given_boxes(features, detected_instances)
-
+        """print("backbone time:", backbone_time - start_time, 
+              "rpn time:", rpn_time - backbone_time,
+              "roi time:", roi_time - rpn_time)"""
         if do_postprocess:
             assert not torch.jit.is_scripting(), "Scripting is not supported for postprocess."
             return GeneralizedRCNN._postprocess(results, batched_inputs, images.image_sizes)

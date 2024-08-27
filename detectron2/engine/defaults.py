@@ -359,6 +359,43 @@ class RGBDPredictor:
         inputs = cv2.imread("input.jpg")
         outputs = pred(inputs)
     """
+    def log_config(self):
+        logger = logging.getLogger(__name__)
+        logger.info(
+            f"hardware: {self.cfg.MODEL.DEVICE}\n"
+            f"input format: {self.cfg.INPUT.FORMAT}\n"
+            f"eval after train: {self.cfg.EVAl_AFTER_TRAIN}\n"
+            f"evaluation period: {self.cfg.TEST.EVAL_PERIOD}\n"
+            f"number of classes: {self.cfg.MODEL.ROI_HEADS.NUM_CLASSES}\n"
+            "\n"
+            f"backbone size: {self.cfg.MODEL.RESNETS.RES2_OUT_CHANNELS}\n"
+            f"stem size: {self.cfg.MODEL.RESNETS.STEM_OUT_CHANNELS}\n"
+            f"backbone size depth: {self.cfg.MODEL.RESNETS.get('RES2_OUT_CHANNELS_DEPTH', None)}\n"
+            f"stem size depth: {self.cfg.MODEL.RESNETS.get('STEM_OUT_CHANNELS_DEPTH', None)}\n"
+            f"FPN size: {self.cfg.MODEL.FPN.OUT_CHANNELS}\n"
+            "\n"
+            f"checkpoint period: {self.cfg.SOLVER.CHECKPOINT_PERIOD}\n"
+            f"max checkpoints to keep: {self.cfg.SOLVER.MAX_TO_KEEP}\n"
+            "\n"
+            f"out dir: {self.cfg.OUTPUT_DIR}\n"
+            f"writer period: {self.cfg.WRITER_PERIOD}\n"
+            f"pixel mean: {self.cfg.MODEL.PIXEL_MEAN}\n"
+            f"pixel_std: {self.cfg.MODEL.PIXEL_STD}\n"
+            "\n"
+            f"base lr: {self.cfg.SOLVER.BASE_LR}\n"
+            f"max iter: {self.cfg.SOLVER.MAX_ITER}\n"
+            f"lr steps: {self.cfg.SOLVER.STEPS}\n"
+            f"lr gamma: {self.cfg.SOLVER.GAMMA}\n"
+            f"losses weights: {self.cfg.SOLVER.LOSS_WEIGHTS}\n"
+            "\n"
+            f"freeze at: {self.cfg.MODEL.BACKBONE.FREEZE_AT}\n"
+            f"unfreeze schedule: {self.cfg.MODEL.UNFREEZE_SCHEDULE}\n"
+            f"unfreeze iters: {self.cfg.MODEL.UNFREEZE_ITERS}\n"
+            f"freeze include: {self.cfg.MODEL.FREEZE_INCLUDE}\n"
+            f"freeze_all_exclude: {self.cfg.MODEL.FREEZE_ALL_EXCLUDE}\n"
+            "\n"
+            f"backbone: {self.cfg.MODEL.BACKBONE}"
+        )
 
     def __init__(self, cfg):
         self.cfg = cfg.clone()  # cfg can be modified by model
@@ -639,21 +676,17 @@ class DefaultTrainer(TrainerBase):
             list[EventWriter]: a list of :class:`EventWriter` objects.
         """
         return default_writers(self.cfg.OUTPUT_DIR, self.max_iter)
-
-    def train(self):
-        """
-        Run training.
-
-        Returns:
-            OrderedDict of results, if evaluation is enabled. Otherwise None.
-        """
-        #Logging important infos
+    
+    def log_config(self):
         logger = logging.getLogger(__name__)
         logger.info(
+            f"weights: {self.cfg.MODEL.WEIGHTS}\n"
             f"hardware: {self.cfg.MODEL.DEVICE}\n"
             f"input format: {self.cfg.INPUT.FORMAT}\n"
             f"eval after train: {self.cfg.EVAl_AFTER_TRAIN}\n"
             f"evaluation period: {self.cfg.TEST.EVAL_PERIOD}\n"
+            f"number of classes: {self.cfg.MODEL.ROI_HEADS.NUM_CLASSES}\n"
+            f"batch_size: {self.cfg.SOLVER.IMS_PER_BATCH}\n"
             "\n"
             f"backbone size: {self.cfg.MODEL.RESNETS.RES2_OUT_CHANNELS}\n"
             f"stem size: {self.cfg.MODEL.RESNETS.STEM_OUT_CHANNELS}\n"
@@ -684,19 +717,28 @@ class DefaultTrainer(TrainerBase):
             f"backbone: {self.cfg.MODEL.BACKBONE}"
         )
 
+    def train(self):
+        """
+        Run training.
+
+        Returns:
+            OrderedDict of results, if evaluation is enabled. Otherwise None.
+        """
+        #Logging important infos
+        self.log_config()
         assert not(len(self.cfg.MODEL.FREEZE_INCLUDE)>0 and len(self.cfg.MODEL.FREEZE_ALL_EXCLUDE)>0), "Cannot use FREEZE_INCLUDE when FREEZE_ALL_EXCLUDE is used"
         if self.cfg.MODEL.FREEZE_INCLUDE:
             for name, param in self.model.named_parameters():
                 if any(layer in name for layer in self.cfg.MODEL.FREEZE_INCLUDE):
                     param.requires_grad = False
                     logger = logging.getLogger(__name__)
-                    logger.info(f"Froze:{name}")
+                    logger.info(f"Froze: {name}")
         elif self.cfg.MODEL.FREEZE_ALL_EXCLUDE:
             for name, param in self.model.named_parameters():
                 if not(any(layer in name for layer in self.cfg.MODEL.FREEZE_ALL_EXCLUDE)):
                     param.requires_grad = False   
                     logger = logging.getLogger(__name__)
-                    logger.info(f"Froze:{name}")
+                    logger.info(f"Froze: {name}")
 
         super().train(self.start_iter, self.max_iter)
         if len(self.cfg.TEST.EXPECTED_RESULTS) and comm.is_main_process():
@@ -985,7 +1027,7 @@ class CopyPasteRGBTrainer(DefaultTrainer):
 
             image_shape = image.shape[:2]  # h, w
         
-            instances = utils.annotations_to_instances(annos, image_shape)
+            instances = utils.annotations_to_instances(annos, image_shape, mask_format=cfg.INPUT.MASK_FORMAT)
             dataset_dict["instances"] = utils.filter_empty_instances(instances)
 
             min_size = cfg.INPUT.MIN_SIZE_TRAIN
@@ -1009,7 +1051,7 @@ class CopyPasteRGBTrainer(DefaultTrainer):
                 for obj in dataset_dict.pop("annotations")
                 if obj.get("iscrowd", 0) == 0
             ]
-            instances = utils.annotations_to_instances(annos, image.shape[:2])
+            instances = utils.annotations_to_instances(annos, image.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT)
             dataset_dict["instances"] = utils.filter_empty_instances(instances)
             return dataset_dict
 
@@ -1036,7 +1078,7 @@ class CopyPasteRGBTrainer(DefaultTrainer):
                 for obj in dataset_dict.pop("annotations")
                 if obj.get("iscrowd", 0) == 0
             ]
-            instances = utils.annotations_to_instances(annos, data.shape[:2])
+            instances = utils.annotations_to_instances(annos, data.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT)
             dataset_dict["instances"] = utils.filter_empty_instances(instances)
             return dataset_dict
 
@@ -1107,7 +1149,7 @@ class RGBDTrainer(DefaultTrainer):
                 for obj in dataset_dict.pop("annotations")
                 if obj.get("iscrowd", 0) == 0
             ]
-            instances = utils.annotations_to_instances(annos, image.shape[:2])
+            instances = utils.annotations_to_instances(annos, image.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT)
             dataset_dict["instances"] = utils.filter_empty_instances(instances)
             return dataset_dict
 
@@ -1141,7 +1183,7 @@ class RGBDTrainer(DefaultTrainer):
                 for obj in dataset_dict.pop("annotations")
                 if obj.get("iscrowd", 0) == 0
             ]
-            instances = utils.annotations_to_instances(annos, data.shape[:2])
+            instances = utils.annotations_to_instances(annos, data.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT)
             dataset_dict["instances"] = utils.filter_empty_instances(instances)
             return dataset_dict
 
@@ -1212,7 +1254,7 @@ class DepthTrainer(DefaultTrainer):
                 for obj in dataset_dict.pop("annotations")
                 if obj.get("iscrowd", 0) == 0
             ]
-            instances = utils.annotations_to_instances(annos, image.shape[:2])
+            instances = utils.annotations_to_instances(annos, image.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT)
             dataset_dict["instances"] = utils.filter_empty_instances(instances)
             return dataset_dict
 
@@ -1252,7 +1294,7 @@ class DepthTrainer(DefaultTrainer):
                 for obj in dataset_dict.pop("annotations")
                 if obj.get("iscrowd", 0) == 0
             ]
-            instances = utils.annotations_to_instances(annos, image.shape[:2])
+            instances = utils.annotations_to_instances(annos, image.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT)
             dataset_dict["instances"] = utils.filter_empty_instances(instances)
             return dataset_dict
 

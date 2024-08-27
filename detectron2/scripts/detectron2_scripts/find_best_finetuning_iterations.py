@@ -41,6 +41,7 @@ from pycocotools.coco import COCO
 
 BACKGROUND_LABEL = 0
 
+
 # Code adapted from: https://github.com/davisvideochallenge/davis-2017/blob/master/python/lib/davis/measures/f_boundary.py
 def boundary_overlap(predicted_mask, gt_mask, bound_th=0.003):
     """
@@ -336,49 +337,108 @@ def register_dataset(dataset_name: str, img_dir: str, annotations_file: str = No
         categories = json.load(f)["categories"]
         MetadataCatalog.get(dataset_name).set(thing_classes=[cat["name"] for cat in categories])
 
-ocid_folder = "/app/detectronDocker/dataset_for_detectron/OCID_COCO"
-ocid_train_annos = os.path.join(ocid_folder, "annotations_all.json")
-ocid_train_folder = os.path.join(ocid_folder, "all")
-register_dataset("OCID", 
-                        ocid_train_folder, annotations_file=ocid_train_annos)
+dataset_name = "4_instances_rocket_steel_with_random_objects"
+dataset_folder = f"/app/detectronDocker/dataset_for_detectron/rocket_steel_all_datasets/{dataset_name}/rgbrd/"
+dataset_annotations = dataset_folder+"annotations.json"
+dataset_images = dataset_folder
+register_dataset(dataset_name, dataset_images, annotations_file=dataset_annotations)
 
-model_name = ""
-model_path = os.path.join("/app/detectronDocker/outputs", model_name)
-config_path = os.path.join(model_path, "config.yaml")
+model_names = glob.glob("/app/detectronDocker/outputs/*finetuned*")
+for thresh in [0.15, 0.3, 0.45, 0.6, 0.75, 0.9]:
+    for model_name in model_names:
+        model_path = os.path.join("/app/detectronDocker/outputs", model_name)
+        config_path = os.path.join(model_path, "config.yaml")
 
-cfg = get_cfg()
-cfg.set_new_allowed(True)
-cfg.merge_from_file(config_path)
-cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7 # set threshold for this model
-cfg.MODEL.ROI_HEADS.NMS_THRESH_TEST = 0.5
-cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+        cfg = get_cfg()
+        cfg.set_new_allowed(True)
+        cfg.merge_from_file(config_path)
+        cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = thresh
+        cfg.MODEL.ROI_HEADS.NMS_THRESH_TEST = 0.5
+        cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-cfg.DATASETS.TEST = ("OCID",)
-cfg.DATASETS.TRAIN = ("OCID",)
-cfg.DATASETS.TRAIN_REPEAT_FACTOR = []
-cfg.DATALOADER.SAMPLER_TRAIN = "TrainingSampler"
+        cfg.DATASETS.TEST = (dataset_name,)
+        cfg.DATASETS.TRAIN = (dataset_name,)
+        cfg.DATASETS.TRAIN_REPEAT_FACTOR = []
+        cfg.DATALOADER.SAMPLER_TRAIN = "TrainingSampler"
 
-# Iterate through models and collect metrics
-m = os.path.join(model_path, "model_final.pth")
+        models = sorted(glob.glob(model_path+"/model*.pth"))
+        results = {}
+        iterations_list = []
+        object_F_list = []
+        object_P_list = []
+        object_R_list = []
+        boundary_F_list = []
+        boundary_P_list = []
+        boundary_R_list = []
 
-# Update model configuration
-cfg.MODEL.WEIGHTS = m
-if cfg.INPUT.FORMAT == "N":
-    trainer = DepthTrainer(cfg)
-elif cfg.INPUT.FORMAT == "D":
-    trainer = DepthTrainer(cfg)
-elif cfg.INPUT.FORMAT == "RD":
-    trainer = DepthTrainer(cfg)
-elif cfg.INPUT.FORMAT == "RGBD":
-    trainer = RGBDTrainer(cfg)
-elif cfg.INPUT.FORMAT == "RGBRD":
-    trainer = RGBDTrainer(cfg)
-else:
-    trainer = DefaultTrainer(cfg)
-trainer.resume_or_load(resume=False)
+        # Iterate through models and collect metrics
+        for m in models:
+            m_id = os.path.basename(m)
+            iterations = int(m_id.replace("model_", "").replace(".pth", "").replace("final", str(cfg.SOLVER.MAX_ITER)))
+            
+            # Update model configuration
+            cfg.MODEL.WEIGHTS = m
+            if cfg.INPUT.FORMAT == "N":
+                trainer = DepthTrainer(cfg)
+            elif cfg.INPUT.FORMAT == "D":
+                trainer = DepthTrainer(cfg)
+            elif cfg.INPUT.FORMAT == "RD":
+                trainer = DepthTrainer(cfg)
+            elif cfg.INPUT.FORMAT == "RGBD":
+                trainer = RGBDTrainer(cfg)
+            elif cfg.INPUT.FORMAT == "RGBRD":
+                trainer = RGBDTrainer(cfg)
+            else:
+                trainer = DefaultTrainer(cfg)
+            trainer.resume_or_load(resume=False)
+            
+            # Evaluate the model
+            evaluator = COCOEvaluator("OCID_test", output_dir="./output")
+            evaluator = CustomMultilabelEvaluator("OCID_test")
+            res = trainer.test(cfg=cfg, model=trainer.model, evaluators=evaluator)
+            print(res)
+            
+            # Collect the results
+            iterations_list.append(iterations)
+            object_F_list.append(res["Objects F-measure"])
+            object_P_list.append(res["Objects Precision"])
+            object_R_list.append(res["Objects Recall"])
+            boundary_F_list.append(res["Boundary F-measure"])
+            boundary_P_list.append(res["Boundary Precision"])
+            boundary_R_list.append(res["Boundary Recall"])
 
-# Evaluate the model
-evaluator = COCOEvaluator("OCID", output_dir="./output")
-evaluator = CustomMultilabelEvaluator("OCID")
-res = trainer.test(cfg=cfg, model=trainer.model, evaluators=evaluator)
-print(res)
+            results[m_id] = res
+
+        # Plot the results
+        plt.figure(figsize=(12, 8))
+        #plt.suptitle(f"Evaluation Metrics for Model: {model_name}", fontsize=20, fontweight='bold')
+        # Plot Object Measures
+        plt.subplot(2, 1, 1)
+        plt.plot(iterations_list, object_F_list, label='Objects F-measure')
+        plt.plot(iterations_list, object_P_list, label='Objects Precision')
+        plt.plot(iterations_list, object_R_list, label='Objects Recall')
+        plt.title('Object Measures over Iterations')
+        plt.xlabel('Iterations')
+        plt.ylabel('Measure')
+        plt.legend()
+        plt.grid(True)
+
+        # Plot Boundary Measures
+        plt.subplot(2, 1, 2)
+        plt.plot(iterations_list, boundary_F_list, label='Boundary F-measure')
+        plt.plot(iterations_list, boundary_P_list, label='Boundary Precision')
+        plt.plot(iterations_list, boundary_R_list, label='Boundary Recall')
+        plt.title('Boundary Measures over Iterations')
+        plt.xlabel('Iterations')
+        plt.ylabel('Measure')
+        plt.legend()
+        plt.grid(True)
+
+        plt.tight_layout()
+        plt.show()
+
+        plt.savefig(os.path.join(model_path, f"metrics_thresh_{cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST}.png"))
+
+        with open(os.path.join(model_path, f"eval_thresh_{cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST}.json"), "w") as out_file:
+            json.dump(results, out_file)   
+            print("json saved")

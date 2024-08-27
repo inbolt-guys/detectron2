@@ -344,46 +344,53 @@ dataset_images = dataset_folder
 
 register_dataset(dataset_name, 
                         dataset_images, annotations_file=dataset_annotations)
+all_results = {}
+models = []
+for model_name in models:
+    model_path = os.path.join("/app/detectronDocker/outputs", model_name)
+    config_path = os.path.join(model_path, "config.yaml")
 
-model_name = ""
-model_path = os.path.join("/app/detectronDocker/outputs", model_name)
-config_path = os.path.join(model_path, "config.yaml")
+    cfg = get_cfg()
+    cfg.set_new_allowed(True)
+    cfg.merge_from_file(config_path)
+    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5 # set threshold for this model
+    cfg.MODEL.ROI_HEADS.NMS_THRESH_TEST = 0.5
+    cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-cfg = get_cfg()
-cfg.set_new_allowed(True)
-cfg.merge_from_file(config_path)
-cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5 # set threshold for this model
-cfg.MODEL.ROI_HEADS.NMS_THRESH_TEST = 0.5
-cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    cfg.DATASETS.TEST = (dataset_name,)
+    cfg.DATASETS.TRAIN = (dataset_name,)
+    cfg.DATASETS.TRAIN_REPEAT_FACTOR = []
+    cfg.DATALOADER.SAMPLER_TRAIN = "TrainingSampler"
 
-cfg.DATASETS.TEST = (dataset_name,)
-cfg.DATASETS.TRAIN = (dataset_name,)
-cfg.DATASETS.TRAIN_REPEAT_FACTOR = []
-cfg.DATALOADER.SAMPLER_TRAIN = "TrainingSampler"
+    # Iterate through models and collect metrics
+    m = os.path.join(model_path, "model_final.pth")
 
-# Iterate through models and collect metrics
-m = os.path.join(model_path, "model_final.pth")
+    # Update model configuration
+    cfg.MODEL.WEIGHTS = m
+    if cfg.INPUT.FORMAT == "N":
+        trainer = DepthTrainer(cfg)
+    elif cfg.INPUT.FORMAT == "D":
+        trainer = DepthTrainer(cfg)
+    elif cfg.INPUT.FORMAT == "RD":
+        trainer = DepthTrainer(cfg)
+    elif cfg.INPUT.FORMAT == "RGBD":
+        trainer = RGBDTrainer(cfg)
+    elif cfg.INPUT.FORMAT == "RGBRD":
+        trainer = RGBDTrainer(cfg)
+    else:
+        trainer = DefaultTrainer(cfg)
+    trainer.resume_or_load(resume=False)
 
-# Update model configuration
-cfg.MODEL.WEIGHTS = m
-if cfg.INPUT.FORMAT == "N":
-    trainer = DepthTrainer(cfg)
-elif cfg.INPUT.FORMAT == "D":
-    trainer = DepthTrainer(cfg)
-elif cfg.INPUT.FORMAT == "RD":
-    trainer = DepthTrainer(cfg)
-elif cfg.INPUT.FORMAT == "RGBD":
-    trainer = RGBDTrainer(cfg)
-elif cfg.INPUT.FORMAT == "RGBRD":
-    trainer = RGBDTrainer(cfg)
-else:
-    trainer = DefaultTrainer(cfg)
-trainer.resume_or_load(resume=False)
+    evaluator = COCOEvaluator(dataset_name, output_dir=model_path)
+    res2 = trainer.test(cfg=cfg, model=trainer.model, evaluators=evaluator)
+    # Evaluate the model
+    evaluator = CustomMultilabelEvaluator(dataset_name)
+    res = trainer.test(cfg=cfg, model=trainer.model, evaluators=evaluator)
+    print(res)
+    print(res2)
+    res.update(res2)
+    all_results[model_name] = res
 
-evaluator = COCOEvaluator(dataset_name, output_dir=model_path)
-res2 = trainer.test(cfg=cfg, model=trainer.model, evaluators=evaluator)
-# Evaluate the model
-evaluator = CustomMultilabelEvaluator(dataset_name)
-res = trainer.test(cfg=cfg, model=trainer.model, evaluators=evaluator)
-print(res)
-print(res2)
+with open(os.path.join("/app/detectronDocker/outputs", f"all_results_finetuned.json"), "w") as out_file:
+            json.dump(all_results, out_file)   
+            print("json saved")

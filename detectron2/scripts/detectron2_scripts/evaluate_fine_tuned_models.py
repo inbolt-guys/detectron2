@@ -336,11 +336,14 @@ def register_dataset(dataset_name: str, img_dir: str, annotations_file: str = No
         categories = json.load(f)["categories"]
         MetadataCatalog.get(dataset_name).set(thing_classes=[cat["name"] for cat in categories])
 
-ocid_folder = "/app/detectronDocker/dataset_for_detectron/OCID_COCO"
-ocid_train_annos = os.path.join(ocid_folder, "annotations_all.json")
-ocid_train_folder = os.path.join(ocid_folder, "all")
-register_dataset("OCID", 
-                        ocid_train_folder, annotations_file=ocid_train_annos)
+
+dataset_name = "4_instances_rocket_steel_with_random_objects"
+dataset_folder = f"/app/detectronDocker/dataset_for_detectron/rocket_steel_all_datasets/{dataset_name}/rgbrd/"
+dataset_annotations = dataset_folder+"annotations.json"
+dataset_images = dataset_folder
+
+register_dataset(dataset_name, 
+                        dataset_images, annotations_file=dataset_annotations)
 
 model_name = ""
 model_path = os.path.join("/app/detectronDocker/outputs", model_name)
@@ -349,12 +352,12 @@ config_path = os.path.join(model_path, "config.yaml")
 cfg = get_cfg()
 cfg.set_new_allowed(True)
 cfg.merge_from_file(config_path)
-cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7 # set threshold for this model
+cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5 # set threshold for this model
 cfg.MODEL.ROI_HEADS.NMS_THRESH_TEST = 0.5
 cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-cfg.DATASETS.TEST = ("OCID",)
-cfg.DATASETS.TRAIN = ("OCID",)
+cfg.DATASETS.TEST = (dataset_name,)
+cfg.DATASETS.TRAIN = (dataset_name,)
 cfg.DATASETS.TRAIN_REPEAT_FACTOR = []
 cfg.DATALOADER.SAMPLER_TRAIN = "TrainingSampler"
 
@@ -377,8 +380,10 @@ else:
     trainer = DefaultTrainer(cfg)
 trainer.resume_or_load(resume=False)
 
+evaluator = COCOEvaluator(dataset_name, output_dir=model_path)
+res2 = trainer.test(cfg=cfg, model=trainer.model, evaluators=evaluator)
 # Evaluate the model
-evaluator = COCOEvaluator("OCID", output_dir="./output")
-evaluator = CustomMultilabelEvaluator("OCID")
+evaluator = CustomMultilabelEvaluator(dataset_name)
 res = trainer.test(cfg=cfg, model=trainer.model, evaluators=evaluator)
 print(res)
+print(res2)

@@ -28,7 +28,7 @@ if __name__ == "__main__":
 
     dataset_name = "4_instances_rocket_steel"
     dataset_folder = "/app/detectronDocker/dataset_for_detectron/rocket_steel_all_datasets/4_instances_rocket_steel/rgbrd/"
-    dataset_annotations = dataset_folder+"annotations_train.json"
+    dataset_annotations = dataset_folder+"annotations.json"
     dataset_images = dataset_folder
     output_dir = cfg.OUTPUT_DIR + "_finetuned_on_" + dataset_name
     cfg.DATALOADER.SAMPLER_TRAIN = "TrainingSampler"

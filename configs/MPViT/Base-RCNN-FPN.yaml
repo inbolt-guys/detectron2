@@ -1,20 +1,16 @@
 MODEL:
-  MASK_ON: True
-  DEVICE: "cpu"
-  PIXEL_MEAN: [103.530, 116.280, 123.675, 80.0]
-  PIXEL_STD: [1.0, 1.0, 1.0, 1.0]
-  META_ARCHITECTURE: "DRCNN"
+  META_ARCHITECTURE: "GeneralizedRCNN"
+  PIXEL_MEAN: [123.675, 116.280, 103.530]
+  PIXEL_STD: [58.395, 57.120, 57.375]
   BACKBONE:
-    NAME: "build_resnet_double_fpn_backbone"
-    MODE: "add"
-    FUSION_OUT_CHANNELS: -1
-  RESNETS:
-    RES2_OUT_CHANNELS: 128
-    DEPTH: 50
-    OUT_FEATURES: ["res2", "res3", "res4", "res5"]
+    NAME: "build_mpvit_fpn_backbone"
+  MPVIT:
+    NAME: "mpvit_base"
+    OUT_FEATURES: ["stage2", "stage3", "stage4", "stage5"]
+    NORM: "SyncBN"
+    DROP_PATH: 0.1
   FPN:
-    OUT_CHANNELS: 128
-    IN_FEATURES: ["res2", "res3", "res4", "res5"]
+    IN_FEATURES: ["stage2", "stage3", "stage4", "stage5"]
   ANCHOR_GENERATOR:
     SIZES: [[32], [64], [128], [256], [512]]  # One size for each in feature map
     ASPECT_RATIOS: [[0.5, 1.0, 2.0]]  # Three aspect ratios (same for all in feature maps)
@@ -39,13 +35,29 @@ MODEL:
     NUM_CONV: 4
     POOLER_RESOLUTION: 14
 DATASETS:
-  TRAIN: ("coco_2017_depth_train",)
-  TEST: ("coco_2017_depth_val",)
+  TRAIN: ("coco_2017_train",)
+  TEST: ("coco_2017_val",)
 SOLVER:
-  IMS_PER_BATCH: 2
-  BASE_LR: 0.02
-  STEPS: (210000, 250000)
-  MAX_ITER: 270000
+  OPTIMIZER: "ADAMW"
+  BACKBONE_MULTIPLIER: 1.0
+  CLIP_GRADIENTS:
+    ENABLED: True
+    CLIP_TYPE: "full_model"
+    CLIP_VALUE: 1.0
+    NORM_TYPE: 2.0
+  WARMUP_FACTOR: 0.01
+  WARMUP_ITERS: 1000
+  BASE_LR: 0.0001
+  WEIGHT_DECAY: 0.05
+  IMS_PER_BATCH: 16
+  STEPS: (60000, 80000)
+  MAX_ITER: 90000
+  CHECKPOINT_PERIOD: 10000
 INPUT:
-  MIN_SIZE_TRAIN: (640, 672, 704, 736, 768, 800)
+  MIN_SIZE_TRAIN: (480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800)
+  FORMAT: "RGB"
+TEST:
+  EVAL_PERIOD: 10000
+DATALOADER:
+  FILTER_EMPTY_ANNOTATIONS: False
 VERSION: 2

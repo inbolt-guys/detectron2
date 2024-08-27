@@ -8,17 +8,18 @@ MODEL:
     NAME: "build_double_resnet_fpn_backbone"
     MODE: "early"
     FUSION:
-      STEPS: ["res3", "res4", "res5"]
+      STEPS: []
       ATTENTION: True
       RELU: True
       BIAS: False
       FUSE_IN: "DEPTH"
   RESNETS:
-    RES2_OUT_CHANNELS_DEPTH: 256
+    RES2_OUT_CHANNELS_DEPTH: 128
+    RES2_OUT_CHANNELS: 128
     DEPTH: 50
     OUT_FEATURES: ["res2", "res3", "res4", "res5"]
   FPN:
-    OUT_CHANNELS: 256
+    OUT_CHANNELS: 128
     IN_FEATURES: ["res2", "res3", "res4", "res5"]
   ANCHOR_GENERATOR:
     SIZES: [[32], [64], [128], [256], [512]]  # One size for each in feature map

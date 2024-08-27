@@ -5,16 +5,22 @@ MODEL:
   PIXEL_STD: [1.0, 1.0, 1.0, 1.0]
   META_ARCHITECTURE: "DRCNN"
   BACKBONE:
-    NAME: "build_resnet_double_fpn_backbone"
-    MODE: "add"
-    FUSION_OUT_CHANNELS: -1
-  RESNETS:
-    RES2_OUT_CHANNELS: 128
-    DEPTH: 50
-    OUT_FEATURES: ["res2", "res3", "res4", "res5"]
+    NAME: "build_double_mpvit_fpn_backbone"
+    MODE: "early"
+    FUSION:
+      STEPS: ["stage3", "stage4", "stage5"]
+      ATTENTION: True
+      RELU: True
+      BIAS: False
+      FUSE_IN: "DEPTH"
+  MPVIT:
+    NAME: "mpvit_tiny"
+    OUT_FEATURES: ["stage2", "stage3", "stage4", "stage5"]
+    NORM: "BN"
+    DROP_PATH: 0.1
   FPN:
-    OUT_CHANNELS: 128
-    IN_FEATURES: ["res2", "res3", "res4", "res5"]
+    OUT_CHANNELS: 256
+    IN_FEATURES: ["stage2", "stage3", "stage4", "stage5"]
   ANCHOR_GENERATOR:
     SIZES: [[32], [64], [128], [256], [512]]  # One size for each in feature map
     ASPECT_RATIOS: [[0.5, 1.0, 2.0]]  # Three aspect ratios (same for all in feature maps)
@@ -42,10 +48,12 @@ DATASETS:
   TRAIN: ("coco_2017_depth_train",)
   TEST: ("coco_2017_depth_val",)
 SOLVER:
-  IMS_PER_BATCH: 2
+  IMS_PER_BATCH: 1
   BASE_LR: 0.02
   STEPS: (210000, 250000)
   MAX_ITER: 270000
 INPUT:
+  FORMAT: "RGBD"
   MIN_SIZE_TRAIN: (640, 672, 704, 736, 768, 800)
 VERSION: 2
+

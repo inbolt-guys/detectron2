@@ -1,0 +1,9 @@
+docker run -it -v /home/clara/Desktop/tet.py:/app/test.py -v /home/clara/datasets/rgb/train/85945879.93764877.png:/app/85945879.93764877rgb.png -v /home/clara/datasets/depth/train/85945879.93764877.png:/app/85945879.93764877d.png -v $(ps -p $(pidof Xwayland) -o args --no-headers | awk '{for(i=1;i<=NF;i++){if($i=="-auth"){print $(i+1);next}}}'):/root/.Xauthority -e DISPLAY=:1 --net=host --privileged inbolt/mybaseimage
+
+python3 GuideNow/packages/depth_segmentation/scripts/annotations_from_recording.py --config /app/docker_volumes/config_dataset1.txt -v DEBUG
+
+python3 record_multi_objects_dataset.py --trajectory trajectory.csv --projects_ids 9d6f02eb-1025-4995-8f9c-2c01ff8846ef 0283ac82-e63b-4eb3-b4f9-93ddeb6747b5 7458bc77-0a27-460b-addd-954165eeaa52 77b7c649-e9b0-4d32-b4e7-f6b18d302a8d
+
+python3 record_dataset.py --trajectory trajectory.csv --project_id 9d6f02eb-1025-4995-8f9c-2c01ff8846ef
+
+python3 manual_offset_finder.py --record /app/docker_volumes/recordings/recording_rocket_wheel_bin_picking_1/ --stl /app/docker_volumes/3d_models/rocket_steel.stl --box_stl /app/docker_volumes/3d_models/box.stl

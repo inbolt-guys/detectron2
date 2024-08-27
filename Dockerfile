@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
 COPY . /app/detectronDocker/detectron2
 
 RUN pip install --upgrade imageio && pip install --upgrade scipy
+RUN pip install einops && pip install timm && pip install shapely
 
 RUN cd /app/detectronDocker/detectron2/albumentations && python3 -m pip install .
 

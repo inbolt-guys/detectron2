@@ -5,6 +5,7 @@ from .anchor_generator import build_anchor_generator, ANCHOR_GENERATOR_REGISTRY
 from .backbone import (
     BACKBONE_REGISTRY,
     FPN,
+    DFPN,
     Backbone,
     ResNet,
     ResNetBlockBase,

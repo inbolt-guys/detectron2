@@ -342,11 +342,16 @@ ocid_train_folder = os.path.join(ocid_folder, "all")
 register_dataset("OCID", 
                         ocid_train_folder, annotations_file=ocid_train_annos)
 all_results = {}
-models = []
+models = glob.glob("/app/detectronDocker/outputs/*")
+models = [item for item in models if os.path.isdir(item)]
 for model_name in models:
     model_path = os.path.join("/app/detectronDocker/outputs", model_name)
     config_path = os.path.join(model_path, "config.yaml")
-
+    if not os.path.isfile(config_path):
+        continue
+    m = os.path.join(model_path, "model_final.pth")
+    if not os.path.isfile(m):
+        continue
     cfg = get_cfg()
     cfg.set_new_allowed(True)
     cfg.merge_from_file(config_path)
@@ -360,8 +365,6 @@ for model_name in models:
     cfg.DATALOADER.SAMPLER_TRAIN = "TrainingSampler"
 
     # Iterate through models and collect metrics
-    m = os.path.join(model_path, "model_final.pth")
-
     # Update model configuration
     cfg.MODEL.WEIGHTS = m
     if cfg.INPUT.FORMAT == "N":
@@ -381,10 +384,11 @@ for model_name in models:
     # Evaluate the model
     evaluator = COCOEvaluator("OCID", output_dir="./output")
     evaluator = CustomMultilabelEvaluator("OCID")
-    res = trainer.test(cfg=cfg, model=trainer.model, evaluators=evaluator)
+    res, inference_time = trainer.test(cfg=cfg, model=trainer.model, evaluators=evaluator, return_inference_time=True)
     print(res)
+    res["inference_time"] = inference_time
     all_results[model_name] = res
 
-with open(os.path.join("/app/detectronDocker/outputs", f"all_results_finetuned.json"), "w") as out_file:
-            json.dump(all_results, out_file)   
-            print("json saved")
+with open(os.path.join("/app/detectronDocker/outputs", f"all_results_OCID.json"), "w") as out_file:
+    json.dump(all_results, out_file)   
+    print("json saved")

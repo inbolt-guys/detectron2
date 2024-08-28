@@ -105,6 +105,7 @@ def inference_on_dataset(
     data_loader,
     evaluator: Union[DatasetEvaluator, List[DatasetEvaluator], None],
     callbacks=None,
+    return_inference_time = False
 ):
     """
     Run model on the data_loader and evaluate the metrics with evaluator.
@@ -215,6 +216,8 @@ def inference_on_dataset(
     # Replace it by an empty dict instead to make it easier for downstream code to handle
     if results is None:
         results = {}
+    if return_inference_time:
+        return results, total_compute_time / (total - num_warmup)
     return results
 
 

@@ -833,7 +833,7 @@ Alternatively, you can call evaluation functions yourself (see Colab balloon tut
         )
 
     @classmethod
-    def test(cls, cfg, model, evaluators=None):
+    def test(cls, cfg, model, evaluators=None, return_inference_time = False):
         """
         Evaluate the given model. The given model is expected to already contain
         weights to evaluate.
@@ -873,7 +873,7 @@ Alternatively, you can call evaluation functions yourself (see Colab balloon tut
                     )
                     results[dataset_name] = {}
                     continue
-            results_i = inference_on_dataset(model, data_loader, evaluator)
+            results_i = inference_on_dataset(model, data_loader, evaluator, return_inference_time=return_inference_time)
             results[dataset_name] = results_i
             if comm.is_main_process():
                 assert isinstance(

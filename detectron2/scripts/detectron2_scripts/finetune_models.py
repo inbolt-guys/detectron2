@@ -13,6 +13,7 @@ from pipeline import Pipeline
 import yaml
 import torch
 import os
+import glob
 
 from detectron2.data.datasets import register_coco_instances
 
@@ -39,44 +40,48 @@ def register_dataset(dataset_name: str, img_dir: str, annotations_file: str = No
 if __name__ == "__main__":
     setup_logger()
 
-    dataset_name = "4_instances_rocket_steel"
-    dataset_folder = "/app/detectronDocker/dataset_for_detectron/rocket_steel_all_datasets/4_instances_rocket_steel/rgbrd/"
+    dataset_name = "rocket_wheel_4_instances_4_poses"
+    dataset_folder = f"/app/detectronDocker/dataset_for_detectron/rocket_steel_all_datasets/{dataset_name}/rgbrd/"
     dataset_annotations = dataset_folder+"annotations.json"
     dataset_images = dataset_folder
     register_dataset(dataset_name, dataset_images, annotations_file=dataset_annotations)
 
-    models = []
-    for model_name in models:
-        model_path = os.path.join("/app/detectronDocker/outputs", model_name)
-        config_path = os.path.join(model_path, "config.yaml")
-        cfg = get_cfg()
-        cfg.set_new_allowed(True)
-        cfg.merge_from_file(config_path)
+model_names = glob.glob("/app/detectronDocker/outputs/*")
+model_names = [os.path.basename(item) for item in model_names if os.path.isdir(item)]
+for model_name in model_names:
+    model_path = os.path.join("/app/detectronDocker/outputs", model_name)
+    config_path = os.path.join(model_path, "config.yaml")
+    cfg = get_cfg()
+    cfg.set_new_allowed(True)
+    cfg.merge_from_file(config_path)
+    cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")
+    if not os.path.isfile(cfg.MODEL.WEIGHTS):
+        print(model_name, "aborted, no weights found !!")
+        continue
+    cfg.SOLVER.BASE_LR = 0.0025 * 2 / 16
+    cfg.SOLVER.MAX_ITER = 10_000
+    cfg.SOLVER.MAX_TO_KEEP = 100
+    cfg.SOLVER.CHECKPOINT_PERIOD = 1000
+    cfg.WRITER_PERIOD = 50
 
-        cfg.SOLVER.BASE_LR = 0.0025 * 2 / 16
-        cfg.SOLVER.MAX_ITER = 10_000
-        cfg.SOLVER.MAX_TO_KEEP = 100
-        cfg.SOLVER.CHECKPOINT_PERIOD = 1000
-        cfg.WRITER_PERIOD = 50
+    output_dir = cfg.OUTPUT_DIR + "_finetuned_on_" + dataset_name
+    cfg.DATALOADER.SAMPLER_TRAIN = "TrainingSampler"
+    cfg.DATASETS.TRAIN_REPEAT_FACTOR = [
+    ]
+    cfg.DATASETS.TRAIN = (dataset_name,)
 
-        output_dir = cfg.OUTPUT_DIR + "_finetuned_on_" + dataset_name
-        cfg.DATALOADER.SAMPLER_TRAIN = "TrainingSampler"
-        cfg.DATASETS.TRAIN_REPEAT_FACTOR = [
-        ]
-        cfg.DATASETS.TRAIN = (dataset_name,)
-
-        hardware = "cuda" if torch.cuda.is_available() else "cpu"
-        pipeline = Pipeline(
-            output_dir=output_dir,
-            cfg=cfg,
-            hardware=hardware,
-        )
+    hardware = "cuda" if torch.cuda.is_available() else "cpu"
+    pipeline = Pipeline(
+        output_dir=output_dir,
+        cfg=cfg,
+        hardware=hardware,
+    )
 
 
-        pipeline.prepare_training(resume=True)
-        trainer = pipeline.trainer
+    pipeline.prepare_training(resume=False)
+    trainer = pipeline.trainer
 
-        trainer.train()
-        pipeline.save_config()
+    trainer.train()
+    pipeline.save_config()
 
 

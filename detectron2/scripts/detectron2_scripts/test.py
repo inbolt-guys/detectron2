@@ -24,6 +24,7 @@ from torchviz import make_dot
 from detectron2.utils.analysis import flop_count_operators
 import unittest
 import torch
+from thop import profile
 
 def register_dataset(dataset_name: str, img_dir: str, annotations_file: str = None):
     """
@@ -44,7 +45,7 @@ def register_dataset(dataset_name: str, img_dir: str, annotations_file: str = No
         MetadataCatalog.get(dataset_name).set(thing_classes=[cat["name"] for cat in categories])
 
 
-model_name = "early_fusion_new_datasets_normalized_input"
+model_name = "early_fusion_new_datasets_normalized_input_no_OCID_FUSE_IN_NOTHING"
 model_path = os.path.join("/app/detectronDocker/outputs", model_name)
 config_path = os.path.join(model_path, "config.yaml")
 
@@ -55,7 +56,7 @@ cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7 # set threshold for this model
 cfg.MODEL.ROI_HEADS.NMS_THRESH_TEST = 0.5
 cfg.MODEL.DEVICE = "cpu"
 
-cfg.MODEL.WEIGHTS = os.path.join(model_path, "model_final.pth")
+cfg.MODEL.WEIGHTS = os.path.join(model_path, "model_0699999.pth")
 
 cfg.DATASETS.TEST = ("OCID_test",)
 cfg.DATASETS.TRAIN = ("OCID_test",)
@@ -90,6 +91,8 @@ while True:
         #imRGBD = np.dstack((rgb, np.zeros_like(depth)))
         #inputs2 = [{"image": torch.rand(4, 484, 576)}]
         #print(flop_count_operators(predictor.model, inputs2))
+        #flops, params = profile(predictor.model, inputs=(inputs2, ))
+        #print(flops, params)
         outputs = predictor(imRGBD)
 
         print(outputs["instances"].pred_classes)

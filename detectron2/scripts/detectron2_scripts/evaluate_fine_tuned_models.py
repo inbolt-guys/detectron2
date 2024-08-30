@@ -254,6 +254,25 @@ def rle_to_mask(rle, height, width):
     if len(mask.shape) > 2:
         mask = np.sum(mask, axis=2)  # Handle multi-part objects if present
     return mask.astype(np.uint8)  # Convert to a binary mask (0s and 1s)
+def polygon_to_mask(polygon, height, width):
+    """
+    Convert polygon format to binary mask.
+    Args:
+        polygon (list of list): List of polygons where each polygon is a list of points.
+        height (int): Height of the mask.
+        width (int): Width of the mask.
+    Returns:
+        numpy.ndarray: Binary mask.
+    """
+    # Initialize the binary mask
+    mask = np.zeros((height, width), dtype=np.uint8)
+    
+    # Draw the polygon(s) on the mask
+    for poly in polygon:
+        pts = np.array(poly).reshape(-1, 2).astype(np.int32)
+        cv2.fillPoly(mask, [pts], color=1)
+    
+    return mask.astype(np.uint8)
 class CustomMultilabelEvaluator(DatasetEvaluator):
     def __init__(self, dataset_name, output_dir=None):
         self.dataset_name = dataset_name
@@ -277,8 +296,15 @@ class CustomMultilabelEvaluator(DatasetEvaluator):
             anns = self._coco_api.loadAnns(ann_ids)
             gt_masks = []
             for ann in anns:
-                rle = ann["segmentation"]  # This is the RLE encoding of the mask
-                binary_mask = rle_to_mask(rle, input["height"], input["width"])
+                segmentation = ann["segmentation"]  # This is the RLE encoding of the mask
+                if isinstance(segmentation, list):
+                    # Polygon format
+                    binary_mask = polygon_to_mask(segmentation, input["height"], input["width"])
+                elif isinstance(segmentation, dict) and 'counts' in segmentation:
+                    # RLE format
+                    binary_mask = rle_to_mask(segmentation, input["height"], input["width"])
+                else:
+                    raise ValueError("")
                 gt_masks.append(binary_mask != 0)
             gt_labeled_mask = create_labeled_mask(gt_masks, input["height"], input["width"])
 
@@ -337,7 +363,7 @@ def register_dataset(dataset_name: str, img_dir: str, annotations_file: str = No
         MetadataCatalog.get(dataset_name).set(thing_classes=[cat["name"] for cat in categories])
 
 
-dataset_name = "4_instances_rocket_steel_with_random_objects"
+dataset_name = "4_instances_rocket_steel"
 dataset_folder = f"/app/detectronDocker/dataset_for_detectron/rocket_steel_all_datasets/{dataset_name}/rgbrd/"
 dataset_annotations = dataset_folder+"annotations.json"
 dataset_images = dataset_folder
@@ -345,11 +371,18 @@ dataset_images = dataset_folder
 register_dataset(dataset_name, 
                         dataset_images, annotations_file=dataset_annotations)
 all_results = {}
-models = []
+models = glob.glob("/app/detectronDocker/outputs/*")
+models = [item for item in models if os.path.isdir(item)]
+models = [item for item in models if "finetuned" in item]
+models = ["/app/detectronDocker/outputs/early_fusion_new_datasets_normalized_input_no_OCID_FUSE_IN_COLOR"]
 for model_name in models:
     model_path = os.path.join("/app/detectronDocker/outputs", model_name)
     config_path = os.path.join(model_path, "config.yaml")
-
+    if not os.path.isfile(config_path):
+        continue
+    m = os.path.join(model_path, "model_final.pth")
+    if not os.path.isfile(m):
+        continue
     cfg = get_cfg()
     cfg.set_new_allowed(True)
     cfg.merge_from_file(config_path)
@@ -361,9 +394,6 @@ for model_name in models:
     cfg.DATASETS.TRAIN = (dataset_name,)
     cfg.DATASETS.TRAIN_REPEAT_FACTOR = []
     cfg.DATALOADER.SAMPLER_TRAIN = "TrainingSampler"
-
-    # Iterate through models and collect metrics
-    m = os.path.join(model_path, "model_final.pth")
 
     # Update model configuration
     cfg.MODEL.WEIGHTS = m
@@ -391,6 +421,6 @@ for model_name in models:
     res.update(res2)
     all_results[model_name] = res
 
-with open(os.path.join("/app/detectronDocker/outputs", f"all_results_finetuned.json"), "w") as out_file:
-            json.dump(all_results, out_file)   
-            print("json saved")
+with open(os.path.join("/app/detectronDocker/outputs", f"results_on_rocket_wheel_not_finetuned.json"), "w") as out_file:
+    json.dump(all_results, out_file)   
+    print("json saved")

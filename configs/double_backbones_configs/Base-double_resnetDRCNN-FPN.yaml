@@ -8,11 +8,11 @@ MODEL:
     NAME: "build_double_resnet_fpn_backbone"
     MODE: "early"
     FUSION:
-      STEPS: []
+      STEPS: ["res3", "res4", "res5"]
       ATTENTION: True
       RELU: True
       BIAS: False
-      FUSE_IN: "DEPTH"
+      FUSE_IN: "COLOR"
   RESNETS:
     RES2_OUT_CHANNELS_DEPTH: 128
     RES2_OUT_CHANNELS: 128

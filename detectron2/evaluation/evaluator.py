@@ -217,7 +217,7 @@ def inference_on_dataset(
     if results is None:
         results = {}
     if return_inference_time:
-        return results, total_compute_time / (total - num_warmup)
+        results["inference_time"] = total_compute_time / (total - num_warmup)
     return results
 
 

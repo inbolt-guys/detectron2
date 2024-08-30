@@ -45,7 +45,7 @@ def register_dataset(dataset_name: str, img_dir: str, annotations_file: str = No
         MetadataCatalog.get(dataset_name).set(thing_classes=[cat["name"] for cat in categories])
 
 
-model_name = "early_fusion_new_datasets_normalized_input_no_OCID_FUSE_IN_NOTHING"
+model_name = "early_fusion_new_datasets_normalized_input_no_OCID_FUSE_IN_COLOR_finetuned_on_rocket_wheel_4_instances_4_poses"
 model_path = os.path.join("/app/detectronDocker/outputs", model_name)
 config_path = os.path.join(model_path, "config.yaml")
 
@@ -56,7 +56,7 @@ cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7 # set threshold for this model
 cfg.MODEL.ROI_HEADS.NMS_THRESH_TEST = 0.5
 cfg.MODEL.DEVICE = "cpu"
 
-cfg.MODEL.WEIGHTS = os.path.join(model_path, "model_0699999.pth")
+cfg.MODEL.WEIGHTS = os.path.join(model_path, "model_0003999.pth")
 
 cfg.DATASETS.TEST = ("OCID_test",)
 cfg.DATASETS.TRAIN = ("OCID_test",)
@@ -81,7 +81,7 @@ cv2.namedWindow('name', cv2.WINDOW_NORMAL)
 while True:
     key = cv2.waitKey(1)
     if key & 0xFF == ord("n"):
-        im = cv2.imread(random.choice(glob(os.path.join(ocid_folder, "*.png"))), cv2.IMREAD_UNCHANGED)
+        im = cv2.imread(random.choice(glob(os.path.join(dataset_folder, "*.png"))), cv2.IMREAD_UNCHANGED)
 
         rgb = im[:, :, :3]
         depth = im[:, :, 3]

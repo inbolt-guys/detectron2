@@ -255,6 +255,25 @@ def rle_to_mask(rle, height, width):
     if len(mask.shape) > 2:
         mask = np.sum(mask, axis=2)  # Handle multi-part objects if present
     return mask.astype(np.uint8)  # Convert to a binary mask (0s and 1s)
+def polygon_to_mask(polygon, height, width):
+    """
+    Convert polygon format to binary mask.
+    Args:
+        polygon (list of list): List of polygons where each polygon is a list of points.
+        height (int): Height of the mask.
+        width (int): Width of the mask.
+    Returns:
+        numpy.ndarray: Binary mask.
+    """
+    # Initialize the binary mask
+    mask = np.zeros((height, width), dtype=np.uint8)
+    
+    # Draw the polygon(s) on the mask
+    for poly in polygon:
+        pts = np.array(poly).reshape(-1, 2).astype(np.int32)
+        cv2.fillPoly(mask, [pts], color=1)
+    
+    return mask.astype(np.uint8)
 class CustomMultilabelEvaluator(DatasetEvaluator):
     def __init__(self, dataset_name, output_dir=None):
         self.dataset_name = dataset_name
@@ -278,8 +297,15 @@ class CustomMultilabelEvaluator(DatasetEvaluator):
             anns = self._coco_api.loadAnns(ann_ids)
             gt_masks = []
             for ann in anns:
-                rle = ann["segmentation"]  # This is the RLE encoding of the mask
-                binary_mask = rle_to_mask(rle, input["height"], input["width"])
+                segmentation = ann["segmentation"]  # This is the RLE encoding of the mask
+                if isinstance(segmentation, list):
+                    # Polygon format
+                    binary_mask = polygon_to_mask(segmentation, input["height"], input["width"])
+                elif isinstance(segmentation, dict) and 'counts' in segmentation:
+                    # RLE format
+                    binary_mask = rle_to_mask(segmentation, input["height"], input["width"])
+                else:
+                    raise ValueError("")
                 gt_masks.append(binary_mask != 0)
             gt_labeled_mask = create_labeled_mask(gt_masks, input["height"], input["width"])
 
@@ -344,101 +370,104 @@ dataset_images = dataset_folder
 register_dataset(dataset_name, dataset_images, annotations_file=dataset_annotations)
 
 model_names = glob.glob("/app/detectronDocker/outputs/*finetuned*")
-for thresh in [0.15, 0.3, 0.45, 0.6, 0.75, 0.9]:
-    for model_name in model_names:
-        model_path = os.path.join("/app/detectronDocker/outputs", model_name)
-        config_path = os.path.join(model_path, "config.yaml")
+for model_name in model_names:
+    model_path = os.path.join("/app/detectronDocker/outputs", model_name)
+    config_path = os.path.join(model_path, "config.yaml")
+    if not os.path.isfile(config_path):
+        continue
+    m = os.path.join(model_path, "model_final.pth")
+    if not os.path.isfile(m):
+        continue
+    cfg = get_cfg()
+    cfg.set_new_allowed(True)
+    cfg.merge_from_file(config_path)
+    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7
+    cfg.MODEL.ROI_HEADS.NMS_THRESH_TEST = 0.5
+    cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-        cfg = get_cfg()
-        cfg.set_new_allowed(True)
-        cfg.merge_from_file(config_path)
-        cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = thresh
-        cfg.MODEL.ROI_HEADS.NMS_THRESH_TEST = 0.5
-        cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    cfg.DATASETS.TEST = (dataset_name,)
+    cfg.DATASETS.TRAIN = (dataset_name,)
+    cfg.DATASETS.TRAIN_REPEAT_FACTOR = []
+    cfg.DATALOADER.SAMPLER_TRAIN = "TrainingSampler"
 
-        cfg.DATASETS.TEST = (dataset_name,)
-        cfg.DATASETS.TRAIN = (dataset_name,)
-        cfg.DATASETS.TRAIN_REPEAT_FACTOR = []
-        cfg.DATALOADER.SAMPLER_TRAIN = "TrainingSampler"
+    models = sorted(glob.glob(model_path+"/model*.pth"))
+    results = {}
+    iterations_list = []
+    object_F_list = []
+    object_P_list = []
+    object_R_list = []
+    boundary_F_list = []
+    boundary_P_list = []
+    boundary_R_list = []
 
-        models = sorted(glob.glob(model_path+"/model*.pth"))
-        results = {}
-        iterations_list = []
-        object_F_list = []
-        object_P_list = []
-        object_R_list = []
-        boundary_F_list = []
-        boundary_P_list = []
-        boundary_R_list = []
+    # Iterate through models and collect metrics
+    for m in models:
+        m_id = os.path.basename(m)
+        iterations = int(m_id.replace("model_", "").replace(".pth", "").replace("final", str(cfg.SOLVER.MAX_ITER)))
+        
+        # Update model configuration
+        cfg.MODEL.WEIGHTS = m
+        if cfg.INPUT.FORMAT == "N":
+            trainer = DepthTrainer(cfg)
+        elif cfg.INPUT.FORMAT == "D":
+            trainer = DepthTrainer(cfg)
+        elif cfg.INPUT.FORMAT == "RD":
+            trainer = DepthTrainer(cfg)
+        elif cfg.INPUT.FORMAT == "RGBD":
+            trainer = RGBDTrainer(cfg)
+        elif cfg.INPUT.FORMAT == "RGBRD":
+            trainer = RGBDTrainer(cfg)
+        else:
+            trainer = DefaultTrainer(cfg)
+        trainer.resume_or_load(resume=False)
+        
+        # Evaluate the model
+        evaluator = COCOEvaluator(dataset_name, output_dir="./output")
+        evaluator = CustomMultilabelEvaluator(dataset_name)
+        res = trainer.test(cfg=cfg, model=trainer.model, evaluators=evaluator)
+        print(res)
+        
+        # Collect the results
+        iterations_list.append(iterations)
+        object_F_list.append(res["Objects F-measure"])
+        object_P_list.append(res["Objects Precision"])
+        object_R_list.append(res["Objects Recall"])
+        boundary_F_list.append(res["Boundary F-measure"])
+        boundary_P_list.append(res["Boundary Precision"])
+        boundary_R_list.append(res["Boundary Recall"])
 
-        # Iterate through models and collect metrics
-        for m in models:
-            m_id = os.path.basename(m)
-            iterations = int(m_id.replace("model_", "").replace(".pth", "").replace("final", str(cfg.SOLVER.MAX_ITER)))
-            
-            # Update model configuration
-            cfg.MODEL.WEIGHTS = m
-            if cfg.INPUT.FORMAT == "N":
-                trainer = DepthTrainer(cfg)
-            elif cfg.INPUT.FORMAT == "D":
-                trainer = DepthTrainer(cfg)
-            elif cfg.INPUT.FORMAT == "RD":
-                trainer = DepthTrainer(cfg)
-            elif cfg.INPUT.FORMAT == "RGBD":
-                trainer = RGBDTrainer(cfg)
-            elif cfg.INPUT.FORMAT == "RGBRD":
-                trainer = RGBDTrainer(cfg)
-            else:
-                trainer = DefaultTrainer(cfg)
-            trainer.resume_or_load(resume=False)
-            
-            # Evaluate the model
-            evaluator = COCOEvaluator("OCID_test", output_dir="./output")
-            evaluator = CustomMultilabelEvaluator("OCID_test")
-            res = trainer.test(cfg=cfg, model=trainer.model, evaluators=evaluator)
-            print(res)
-            
-            # Collect the results
-            iterations_list.append(iterations)
-            object_F_list.append(res["Objects F-measure"])
-            object_P_list.append(res["Objects Precision"])
-            object_R_list.append(res["Objects Recall"])
-            boundary_F_list.append(res["Boundary F-measure"])
-            boundary_P_list.append(res["Boundary Precision"])
-            boundary_R_list.append(res["Boundary Recall"])
+        results[m_id] = res
 
-            results[m_id] = res
+    # Plot the results
+    plt.figure(figsize=(12, 8))
+    #plt.suptitle(f"Evaluation Metrics for Model: {model_name}", fontsize=20, fontweight='bold')
+    # Plot Object Measures
+    plt.subplot(2, 1, 1)
+    plt.plot(iterations_list, object_F_list, label='Objects F-measure')
+    plt.plot(iterations_list, object_P_list, label='Objects Precision')
+    plt.plot(iterations_list, object_R_list, label='Objects Recall')
+    plt.title('Object Measures over Iterations')
+    plt.xlabel('Iterations')
+    plt.ylabel('Measure')
+    plt.legend()
+    plt.grid(True)
 
-        # Plot the results
-        plt.figure(figsize=(12, 8))
-        #plt.suptitle(f"Evaluation Metrics for Model: {model_name}", fontsize=20, fontweight='bold')
-        # Plot Object Measures
-        plt.subplot(2, 1, 1)
-        plt.plot(iterations_list, object_F_list, label='Objects F-measure')
-        plt.plot(iterations_list, object_P_list, label='Objects Precision')
-        plt.plot(iterations_list, object_R_list, label='Objects Recall')
-        plt.title('Object Measures over Iterations')
-        plt.xlabel('Iterations')
-        plt.ylabel('Measure')
-        plt.legend()
-        plt.grid(True)
+    # Plot Boundary Measures
+    plt.subplot(2, 1, 2)
+    plt.plot(iterations_list, boundary_F_list, label='Boundary F-measure')
+    plt.plot(iterations_list, boundary_P_list, label='Boundary Precision')
+    plt.plot(iterations_list, boundary_R_list, label='Boundary Recall')
+    plt.title('Boundary Measures over Iterations')
+    plt.xlabel('Iterations')
+    plt.ylabel('Measure')
+    plt.legend()
+    plt.grid(True)
 
-        # Plot Boundary Measures
-        plt.subplot(2, 1, 2)
-        plt.plot(iterations_list, boundary_F_list, label='Boundary F-measure')
-        plt.plot(iterations_list, boundary_P_list, label='Boundary Precision')
-        plt.plot(iterations_list, boundary_R_list, label='Boundary Recall')
-        plt.title('Boundary Measures over Iterations')
-        plt.xlabel('Iterations')
-        plt.ylabel('Measure')
-        plt.legend()
-        plt.grid(True)
+    plt.tight_layout()
+    plt.show()
 
-        plt.tight_layout()
-        plt.show()
+    plt.savefig(os.path.join(model_path, f"metrics_thresh_{cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST}_finetuned.png"))
 
-        plt.savefig(os.path.join(model_path, f"metrics_thresh_{cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST}.png"))
-
-        with open(os.path.join(model_path, f"eval_thresh_{cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST}.json"), "w") as out_file:
-            json.dump(results, out_file)   
-            print("json saved")
+    with open(os.path.join(model_path, f"eval_thresh_{cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST}_finetuned.json"), "w") as out_file:
+        json.dump(results, out_file)   
+        print("json saved")

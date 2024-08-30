@@ -46,8 +46,9 @@ if __name__ == "__main__":
     dataset_images = dataset_folder
     register_dataset(dataset_name, dataset_images, annotations_file=dataset_annotations)
 
-model_names = glob.glob("/app/detectronDocker/outputs/*")
-model_names = [os.path.basename(item) for item in model_names if os.path.isdir(item)]
+model_names = ["early_fusion_new_datasets_normalized_input_no_OCID_FUSE_IN_NOTHING"]
+#model_names = glob.glob("/app/detectronDocker/outputs/*")
+#model_names = [os.path.basename(item) for item in model_names if os.path.isdir(item)]
 for model_name in model_names:
     model_path = os.path.join("/app/detectronDocker/outputs", model_name)
     config_path = os.path.join(model_path, "config.yaml")

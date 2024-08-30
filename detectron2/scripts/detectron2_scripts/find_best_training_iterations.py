@@ -348,8 +348,8 @@ ocid_all_annos = os.path.join(ocid_folder, "annotations_all.json")
 ocid_all_folder = os.path.join(ocid_folder, "all")
 register_dataset("OCID_all", ocid_all_folder, annotations_file=ocid_all_annos)
 
-model_names = glob.glob("/app/detectronDocker/outputs/*")
-model_names = [os.path.basename(item) for item in model_names if os.path.isdir(item)]
+model_names = ["early_fusion_new_datasets_normalized_input_no_OCID_FUSE_IN_NOTHING"]
+#model_names = [os.path.basename(item) for item in model_names if os.path.isdir(item)]
 for thresh in [0.15, 0.3, 0.45, 0.6, 0.75, 0.9]:
     for model_name in model_names:
         model_path = os.path.join("/app/detectronDocker/outputs", model_name)

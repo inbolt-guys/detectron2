@@ -344,12 +344,14 @@ register_dataset("OCID",
 all_results = {}
 models = glob.glob("/app/detectronDocker/outputs/*")
 models = [item for item in models if os.path.isdir(item)]
+models = [item for item in models if not "finetuned" in item]
+#models = ["/app/detectronDocker/outputs/early_fusion_new_datasets_normalized_input_no_OCID_FUSE_IN_COLOR"]
 for model_name in models:
     model_path = os.path.join("/app/detectronDocker/outputs", model_name)
     config_path = os.path.join(model_path, "config.yaml")
     if not os.path.isfile(config_path):
         continue
-    m = os.path.join(model_path, "model_final.pth")
+    m = os.path.join(model_path, "model_0399999.pth")
     if not os.path.isfile(m):
         continue
     cfg = get_cfg()
@@ -384,11 +386,10 @@ for model_name in models:
     # Evaluate the model
     evaluator = COCOEvaluator("OCID", output_dir="./output")
     evaluator = CustomMultilabelEvaluator("OCID")
-    res, inference_time = trainer.test(cfg=cfg, model=trainer.model, evaluators=evaluator, return_inference_time=True)
+    res = trainer.test(cfg=cfg, model=trainer.model, evaluators=evaluator, return_inference_time=True)
     print(res)
-    res["inference_time"] = inference_time
     all_results[model_name] = res
 
-with open(os.path.join("/app/detectronDocker/outputs", f"all_results_OCID.json"), "w") as out_file:
+with open(os.path.join("/app/detectronDocker/outputs", f"all_results_OCID_40.json"), "w") as out_file:
     json.dump(all_results, out_file)   
     print("json saved")

@@ -211,7 +211,7 @@ class DRCNN(nn.Module):
 
         if detected_instances is None:
             if self.proposal_generator is not None:
-                proposals, _ = self.proposal_generator(imagesRGB, features, None, self.mode == "simple")
+                proposals, _ = self.proposal_generator(features, None, self.mode == "simple")
                 rpn_time = time.time()
             else:
                 assert "proposals" in batched_inputs[0]

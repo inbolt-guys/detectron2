@@ -65,7 +65,9 @@ def assign_boxes_to_levels(
     # clamp level to (min, max), in case the box size is too large or too small
     # for the available feature maps
     level_assignments = torch.clamp(level_assignments, min=min_level, max=max_level)
-    return level_assignments.to(torch.int64) - min_level + nbLevels * box_second_backbone
+    # FIXME : WORK ONLY WITH EARLY FUSION MODELS
+    # The last part is commented so the quantization process is working for early fusion model. If you want to use other models please uncomment the last part. 
+    return level_assignments.to(torch.int64) - min_level   # + nbLevels * box_second_backbone 
 
 
 # script the module to avoid hardcoded device type

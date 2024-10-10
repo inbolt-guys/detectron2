@@ -1,0 +1,108 @@
+import openvino as ov
+from AsyncPipeline.steps import run_pipeline
+from AsyncPipeline.models import IEModel
+
+import os
+import re
+
+import argparse
+
+parser = argparse.ArgumentParser(
+    description="""This script is designed to do inference using the model splitted in 2 parts. The first part being the backbone and the second part being 
+                                 the RPN&ROI part of the Mask-RCNN Architecture. The structure of the project is inspired from : https://github.com/openvinotoolkit/open_model_zoo/tree/master/demos/action_recognition_demo/python .
+                                 The project has been designed to work with RGB-RD (Raw Depth) models, if you to use a different input format please change the preprocessing in the DataStep. 
+                                 To use please provide a folder containing images you want to do inference on, the model backbone path and the corresponding RPN&ROI path.
+                                 You can select also the inference device for each model and also the number of request for the AsyncInferQueue of OpenVINO (see https://docs.openvino.ai/2024/api/ie_python_api/_autosummary/openvino.runtime.AsyncInferQueue.html).
+                                 It is usually better to put the req_rpn_roi higher than req_backbone. Each model is doing inference in a different process, the communication between processes (meaning the results of the backbone inference) is handled usign a SharedLocation class that is based on 
+                                 the multiprocessing library. You can use a quantized backbone with a non quantized RPN&ROI  """
+)
+
+parser.add_argument(
+    "--folder_path",
+    type=str,
+    required=True,
+    help="Folder containing the picture you want to make inference on",
+)
+parser.add_argument(
+    "--backbone_path",
+    type=str,
+    required=True,
+    help="Path of the backbone .xml file. Make sure the filename contains the input size of the model (for example 480_640)",
+)
+parser.add_argument(
+    "--rpn_roi_path",
+    type=str,
+    required=True,
+    help="Path of the RPN&ROI .xml file. Make sure the filename contains the input size of the model (for example 480_640) and that the file corresponds with the backbone file",
+)
+parser.add_argument(
+    "--device_backbone", type=str, default="NPU", help="Device on which the backbone is compiled"
+)
+parser.add_argument(
+    "--device_rpn_roi",
+    type=str,
+    default="HETERO:GPU,CPU",
+    help="Device on which the RPN&ROI is compiled",
+)
+parser.add_argument(
+    "--req_backbone", type=int, default=1, help="Device on which the backbone is compiled"
+)
+parser.add_argument(
+    "--req_rpn_roi", type=int, default=1, help="Device on which the RPN&ROI is compiled"
+)
+parser.add_argument(
+    "--num_images", type=int, default=100, help="Number of images to do the inference on"
+)
+
+args = parser.parse_args()
+
+
+images_folder = [
+    os.path.join(args.folder_path, img)
+    for img in os.listdir(args.folder_path)
+    if img.lower().endswith(("png", "jpg", "jpeg", "gif", "bmp"))
+]
+
+# To sort the images to have them in chronological order
+# def extract_number_from_path(path):
+#     # Extract the filename from the path
+#     filename = os.path.basename(path)
+#     # Extract the numerical part from the filename (before '.png')
+#     match = re.match(r'(\d+(\.\d+)?)\.png$', filename)
+#     if match:
+#         # Convert the extracted number to a float
+#         return float(match.group(1))
+#     else:
+#         # Return a default value or raise an error if needed
+#         return float('inf')
+
+# # Sort the list based on the extracted number
+# images_folder = sorted(images_folder, key=extract_number_from_path)
+
+
+images_folder = images_folder[: args.num_images]
+
+
+core = ov.Core()
+
+# backbone_path = 'OpenVINO_Compilation_CLI/quant_backbone_rgbrd_480_640.xml'
+# rpn_roi_path = 'OpenVINO_Compilation_CLI/rpn_roi_rgbrd_480_640.xml'
+
+
+backbone_model = IEModel(
+    args.backbone_path,
+    core,
+    args.device_backbone,
+    num_requests=args.req_backbone,
+    model_type="Backbone",
+)
+rpn_roi_model = IEModel(
+    args.rpn_roi_path,
+    core,
+    args.device_rpn_roi,
+    num_requests=args.req_rpn_roi,
+    model_type="RPN & ROI",
+)
+models = [backbone_model, rpn_roi_model]
+
+run_pipeline(images_folder, height=480, width=640, models=models)

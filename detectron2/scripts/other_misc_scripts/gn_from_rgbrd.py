@@ -5,7 +5,8 @@ import numpy as np
 import open3d as o3d
 from concurrent.futures import ProcessPoolExecutor
 
-def get_normal_vector_angles_from_depthmap(depth, imsize = None, camera_matrix=None):
+
+def get_normal_vector_angles_from_depthmap(depth, imsize=None, camera_matrix=None):
     # Estimate camera matrix if not provided
     if imsize is None:
         imsize = depth.shape
@@ -67,6 +68,7 @@ def get_normal_vector_angles_from_depthmap(depth, imsize = None, camera_matrix=N
 
     return normal_vector_angles
 
+
 def smooth_normals(im, n_iter=5, n_iter2=1):
     """
     Apply multiple gaussian blur to smooth the normals while not changing the known values (!= 127)
@@ -80,6 +82,7 @@ def smooth_normals(im, n_iter=5, n_iter2=1):
         im = cv2.GaussianBlur(im, (5, 5), 0)
 
     return im
+
 
 def rgb_to_grayscale(rgb_image):
     weights = np.array([0.299, 0.5870, 0.1140])
@@ -110,6 +113,7 @@ def process_image(args):
     gn = np.dstack((greyscale, normals))
     cv2.imwrite(output_path, gn.astype(np.uint8))
 
+
 def orient_normals_towards_camera(normals):
     """
     Ensure normals are oriented towards the camera, assuming the camera is at the origin.
@@ -117,13 +121,15 @@ def orient_normals_towards_camera(normals):
     """
     # Calculate the dot product of the normal with the view direction (assumed to be [0, 0, -1])
     normals = np.copy(normals)
-    dot_product = normals[:,:,2]
+    dot_product = normals[:, :, 2]
     # Flip normals that point away from the camera
     normals[dot_product > 0] = -normals[dot_product > 0]
     return normals
 
+
 coco_path = "/home/inbolt/clara/detectronDocker/dataset_for_detectron/coco2017_depth"
 datasets = ["train2017", "test2017", "val2017"]
+
 
 def process_images_in_directory(dataset, num_processes):
     images = sorted(glob.glob(f"{coco_path}/RGBRD/{dataset}/*.png"))
@@ -134,6 +140,7 @@ def process_images_in_directory(dataset, num_processes):
     with ProcessPoolExecutor(max_workers=num_processes) as executor:
         executor.map(process_image, args)
 
+
 def main():
     num_cores = os.cpu_count()
     datasets = ["train2017", "test2017", "val2017"]
@@ -143,5 +150,6 @@ def main():
     for dataset in datasets:
         process_images_in_directory(dataset, num_processes)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

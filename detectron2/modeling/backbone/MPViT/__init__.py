@@ -8,6 +8,11 @@
 # --------------------------------------------------------------------------------
 
 from .config import add_mpvit_config
-from .backbone import build_mpvit_fpn_backbone, build_mpvit_backbone, MPViT_Backbone, build_mpvit_double_fpn_backbone
+from .backbone import (
+    build_mpvit_fpn_backbone,
+    build_mpvit_backbone,
+    MPViT_Backbone,
+    build_mpvit_double_fpn_backbone,
+)
 from .double_mpvit_early_fusion import build_double_mpvit_fpn_backbone
 from .dataset_mapper import DetrDatasetMapper

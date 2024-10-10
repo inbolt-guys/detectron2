@@ -40,6 +40,7 @@ __all__ = [
 
 _NORM = None
 
+
 def _cfg_mpvit(url="", **kwargs):
     """configuration of mpvit."""
     return {
@@ -61,13 +62,14 @@ class Mlp(nn.Module):
     """Feed-forward network (FFN, a.k.a.
     MLP) class.
     """
+
     def __init__(
-            self,
-            in_features,
-            hidden_features=None,
-            out_features=None,
-            act_layer=nn.GELU,
-            drop=0.0,
+        self,
+        in_features,
+        hidden_features=None,
+        out_features=None,
+        act_layer=nn.GELU,
+        drop=0.0,
     ):
         super().__init__()
         out_features = out_features or in_features
@@ -89,28 +91,23 @@ class Mlp(nn.Module):
 
 class Conv2d_BN(nn.Module):
     """Convolution with BN module."""
+
     def __init__(
-            self,
-            in_ch,
-            out_ch,
-            kernel_size=1,
-            stride=1,
-            pad=0,
-            dilation=1,
-            groups=1,
-            bn_weight_init=1,
-            act_layer=None,
+        self,
+        in_ch,
+        out_ch,
+        kernel_size=1,
+        stride=1,
+        pad=0,
+        dilation=1,
+        groups=1,
+        bn_weight_init=1,
+        act_layer=None,
     ):
         super().__init__()
 
-        self.conv = torch.nn.Conv2d(in_ch,
-                                    out_ch,
-                                    kernel_size,
-                                    stride,
-                                    pad,
-                                    dilation,
-                                    groups,
-                                    bias=False
+        self.conv = torch.nn.Conv2d(
+            in_ch, out_ch, kernel_size, stride, pad, dilation, groups, bias=False
         )
         self.bn = get_norm(_NORM, out_ch)
         torch.nn.init.constant_(self.bn.weight, bn_weight_init)
@@ -136,13 +133,13 @@ class DWConv2d_BN(nn.Module):
     """Depthwise Separable Convolution with BN module."""
 
     def __init__(
-            self,
-            in_ch,
-            out_ch,
-            kernel_size=1,
-            stride=1,
-            act_layer=nn.Hardswish,
-            bn_weight_init=1,
+        self,
+        in_ch,
+        out_ch,
+        kernel_size=1,
+        stride=1,
+        act_layer=nn.Hardswish,
+        bn_weight_init=1,
     ):
         super().__init__()
 
@@ -155,7 +152,7 @@ class DWConv2d_BN(nn.Module):
             (kernel_size - 1) // 2,
             groups=out_ch,
             bias=False,
-            )
+        )
         # pw-linear
         self.pwconv = nn.Conv2d(out_ch, out_ch, 1, 1, 0, bias=False)
         self.bn = get_norm(_NORM, out_ch)
@@ -171,7 +168,6 @@ class DWConv2d_BN(nn.Module):
                 m.weight.data.fill_(bn_weight_init)
                 m.bias.data.zero_()
 
-
     def forward(self, x):
 
         x = self.dwconv(x)
@@ -182,16 +178,11 @@ class DWConv2d_BN(nn.Module):
         return x
 
 
-
 class DWCPatchEmbed(nn.Module):
     """Depthwise Convolutional Patch Embedding layer Image to Patch
     Embedding."""
-    def __init__(self,
-                 in_chans=3,
-                 embed_dim=768,
-                 patch_size=16,
-                 stride=1,
-                 act_layer=nn.Hardswish):
+
+    def __init__(self, in_chans=3, embed_dim=768, patch_size=16, stride=1, act_layer=nn.Hardswish):
         super().__init__()
 
         self.patch_conv = DWConv2d_BN(
@@ -206,20 +197,25 @@ class DWCPatchEmbed(nn.Module):
         x = self.patch_conv(x)
         return x
 
+
 class Patch_Embed_stage(nn.Module):
     """Depthwise Convolutional Patch Embedding stage comprised of
     `DWCPatchEmbed` layers."""
+
     def __init__(self, embed_dim, num_path=4, isPool=False):
         super(Patch_Embed_stage, self).__init__()
 
-        self.patch_embeds = nn.ModuleList([
-            DWCPatchEmbed(
-                in_chans=embed_dim,
-                embed_dim=embed_dim,
-                patch_size=3,
-                stride=2 if isPool and idx == 0 else 1,
-            ) for idx in range(num_path)
-        ])
+        self.patch_embeds = nn.ModuleList(
+            [
+                DWCPatchEmbed(
+                    in_chans=embed_dim,
+                    embed_dim=embed_dim,
+                    patch_size=3,
+                    stride=2 if isPool and idx == 0 else 1,
+                )
+                for idx in range(num_path)
+            ]
+        )
 
     def forward(self, x):
 
@@ -231,12 +227,12 @@ class Patch_Embed_stage(nn.Module):
         return att_inputs
 
 
-
 class ConvPosEnc(nn.Module):
     """Convolutional Position Encoding.
 
     Note: This module is similar to the conditional position encoding in CPVT.
     """
+
     def __init__(self, dim, k=3):
         """init function"""
         super(ConvPosEnc, self).__init__()
@@ -257,6 +253,7 @@ class ConvPosEnc(nn.Module):
 
 class ConvRelPosEnc(nn.Module):
     """Convolutional relative position encoding."""
+
     def __init__(self, Ch, h, window):
         """Initialization.
 
@@ -287,8 +284,7 @@ class ConvRelPosEnc(nn.Module):
         self.head_splits = []
         for cur_window, cur_head_split in window.items():
             dilation = 1  # Use dilation=1 at default.
-            padding_size = (cur_window + (cur_window - 1) *
-                            (dilation - 1)) // 2
+            padding_size = (cur_window + (cur_window - 1) * (dilation - 1)) // 2
             cur_conv = nn.Conv2d(
                 cur_head_split * Ch,
                 cur_head_split * Ch,
@@ -296,7 +292,7 @@ class ConvRelPosEnc(nn.Module):
                 padding=(padding_size, padding_size),
                 dilation=(dilation, dilation),
                 groups=cur_head_split * Ch,
-                )
+            )
             self.conv_list.append(cur_conv)
             self.head_splits.append(cur_head_split)
         self.channel_splits = [x * Ch for x in self.head_splits]
@@ -314,9 +310,7 @@ class ConvRelPosEnc(nn.Module):
         v_img = rearrange(v_img, "B h (H W) Ch -> B (h Ch) H W", H=H, W=W)
         # Split according to channels.
         v_img_list = torch.split(v_img, self.channel_splits, dim=1)
-        conv_v_img_list = [
-            conv(x) for conv, x in zip(self.conv_list, v_img_list)
-        ]
+        conv_v_img_list = [conv(x) for conv, x in zip(self.conv_list, v_img_list)]
         conv_v_img = torch.cat(conv_v_img_list, dim=1)
         # Shape: [B, h*Ch, H, W] -> [B, h, H*W, Ch].
         conv_v_img = rearrange(conv_v_img, "B (h Ch) H W -> B h (H W) Ch", h=h)
@@ -329,15 +323,16 @@ class ConvRelPosEnc(nn.Module):
 class FactorAtt_ConvRelPosEnc(nn.Module):
     """Factorized attention with convolutional relative position encoding
     class."""
+
     def __init__(
-            self,
-            dim,
-            num_heads=8,
-            qkv_bias=False,
-            qk_scale=None,
-            attn_drop=0.0,
-            proj_drop=0.0,
-            shared_crpe=None,
+        self,
+        dim,
+        num_heads=8,
+        qkv_bias=False,
+        qk_scale=None,
+        attn_drop=0.0,
+        proj_drop=0.0,
+        shared_crpe=None,
     ):
         super().__init__()
         self.num_heads = num_heads
@@ -357,15 +352,15 @@ class FactorAtt_ConvRelPosEnc(nn.Module):
         B, N, C = x.shape
 
         # Generate Q, K, V.
-        qkv = (self.qkv(x).reshape(B, N, 3, self.num_heads,
-                                   C // self.num_heads).permute(2, 0, 3, 1, 4)).contiguous()
+        qkv = (
+            self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        ).contiguous()
         q, k, v = qkv[0], qkv[1], qkv[2]
 
         # Factorized attention.
         k_softmax = k.softmax(dim=2)
         k_softmax_T_dot_v = einsum("b h n k, b h n v -> b h k v", k_softmax, v)
-        factor_att = einsum("b h n k, b h k v -> b h n v", q,
-                            k_softmax_T_dot_v)
+        factor_att = einsum("b h n k, b h k v -> b h n v", q, k_softmax_T_dot_v)
 
         # Convolutional relative position encoding.
         crpe = self.crpe(q, v, size=size)
@@ -383,17 +378,18 @@ class FactorAtt_ConvRelPosEnc(nn.Module):
 
 class MHCABlock(nn.Module):
     """Multi-Head Convolutional self-Attention block."""
+
     def __init__(
-            self,
-            dim,
-            num_heads,
-            mlp_ratio=3,
-            drop_path=0.0,
-            qkv_bias=True,
-            qk_scale=None,
-            norm_layer=partial(nn.LayerNorm, eps=1e-6),
-            shared_cpe=None,
-            shared_crpe=None,
+        self,
+        dim,
+        num_heads,
+        mlp_ratio=3,
+        drop_path=0.0,
+        qkv_bias=True,
+        qk_scale=None,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        shared_cpe=None,
+        shared_crpe=None,
     ):
         super().__init__()
 
@@ -407,8 +403,7 @@ class MHCABlock(nn.Module):
             shared_crpe=shared_crpe,
         )
         self.mlp = Mlp(in_features=dim, hidden_features=dim * mlp_ratio)
-        self.drop_path = DropPath(
-            drop_path) if drop_path > 0.0 else nn.Identity()
+        self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
 
         self.norm1 = norm_layer(dim)
         self.norm2 = norm_layer(dim)
@@ -425,42 +420,39 @@ class MHCABlock(nn.Module):
         return x
 
 
-
 class MHCAEncoder(nn.Module):
     """Multi-Head Convolutional self-Attention Encoder comprised of `MHCA`
     blocks."""
+
     def __init__(
-            self,
-            dim,
-            num_layers=1,
-            num_heads=8,
-            mlp_ratio=3,
-            drop_path_list=[],
-            qk_scale=None,
-            crpe_window={
-                3: 2,
-                5: 3,
-                7: 3
-            },
+        self,
+        dim,
+        num_layers=1,
+        num_heads=8,
+        mlp_ratio=3,
+        drop_path_list=[],
+        qk_scale=None,
+        crpe_window={3: 2, 5: 3, 7: 3},
     ):
         super().__init__()
 
         self.num_layers = num_layers
         self.cpe = ConvPosEnc(dim, k=3)
-        self.crpe = ConvRelPosEnc(Ch=dim // num_heads,
-                                  h=num_heads,
-                                  window=crpe_window)
-        self.MHCA_layers = nn.ModuleList([
-            MHCABlock(
-                dim,
-                num_heads=num_heads,
-                mlp_ratio=mlp_ratio,
-                drop_path=drop_path_list[idx],
-                qk_scale=qk_scale,
-                shared_cpe=self.cpe,
-                shared_crpe=self.crpe,
-            ) for idx in range(self.num_layers)
-        ])
+        self.crpe = ConvRelPosEnc(Ch=dim // num_heads, h=num_heads, window=crpe_window)
+        self.MHCA_layers = nn.ModuleList(
+            [
+                MHCABlock(
+                    dim,
+                    num_heads=num_heads,
+                    mlp_ratio=mlp_ratio,
+                    drop_path=drop_path_list[idx],
+                    qk_scale=qk_scale,
+                    shared_cpe=self.cpe,
+                    shared_crpe=self.crpe,
+                )
+                for idx in range(self.num_layers)
+            ]
+        )
 
     def forward(self, x, size):
         """foward function"""
@@ -476,21 +468,20 @@ class MHCAEncoder(nn.Module):
 
 class ResBlock(nn.Module):
     """Residual block for convolutional local feature."""
+
     def __init__(
-            self,
-            in_features,
-            hidden_features=None,
-            out_features=None,
-            act_layer=nn.Hardswish,
-            norm_layer=nn.BatchNorm2d,
+        self,
+        in_features,
+        hidden_features=None,
+        out_features=None,
+        act_layer=nn.Hardswish,
+        norm_layer=nn.BatchNorm2d,
     ):
         super().__init__()
 
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
-        self.conv1 = Conv2d_BN(in_features,
-                               hidden_features,
-                               act_layer=act_layer)
+        self.conv1 = Conv2d_BN(in_features, hidden_features, act_layer=act_layer)
         self.dwconv = nn.Conv2d(
             hidden_features,
             hidden_features,
@@ -531,36 +522,39 @@ class ResBlock(nn.Module):
         return identity + feat
 
 
-
 class MHCA_stage(nn.Module):
     """Multi-Head Convolutional self-Attention stage comprised of `MHCAEncoder`
     layers."""
+
     def __init__(
-            self,
-            embed_dim,
-            out_embed_dim,
-            num_layers=1,
-            num_heads=8,
-            mlp_ratio=3,
-            num_path=4,
-            drop_path_list=[],
+        self,
+        embed_dim,
+        out_embed_dim,
+        num_layers=1,
+        num_heads=8,
+        mlp_ratio=3,
+        num_path=4,
+        drop_path_list=[],
     ):
         super().__init__()
 
-        self.mhca_blks = nn.ModuleList([
-            MHCAEncoder(
-                embed_dim,
-                num_layers,
-                num_heads,
-                mlp_ratio,
-                drop_path_list=drop_path_list,
-            ) for _ in range(num_path)
-        ])
+        self.mhca_blks = nn.ModuleList(
+            [
+                MHCAEncoder(
+                    embed_dim,
+                    num_layers,
+                    num_heads,
+                    mlp_ratio,
+                    drop_path_list=drop_path_list,
+                )
+                for _ in range(num_path)
+            ]
+        )
         self.out_channels = out_embed_dim
         self.InvRes = ResBlock(in_features=embed_dim, out_features=embed_dim)
-        self.aggregate = Conv2d_BN(embed_dim * (num_path + 1),
-                                   out_embed_dim,
-                                   act_layer=nn.Hardswish)
+        self.aggregate = Conv2d_BN(
+            embed_dim * (num_path + 1), out_embed_dim, act_layer=nn.Hardswish
+        )
 
     def forward(self, inputs):
         att_outputs = [self.InvRes(inputs[0])]
@@ -576,16 +570,13 @@ class MHCA_stage(nn.Module):
         return out
 
 
-
 def dpr_generator(drop_path_rate, num_layers, num_stages):
     """Generate drop path rate list following linear decay rule."""
-    dpr_list = [
-        x.item() for x in torch.linspace(0, drop_path_rate, sum(num_layers))
-    ]
+    dpr_list = [x.item() for x in torch.linspace(0, drop_path_rate, sum(num_layers))]
     dpr = []
     cur = 0
     for i in range(num_stages):
-        dpr_per_stage = dpr_list[cur:cur + num_layers[i]]
+        dpr_per_stage = dpr_list[cur : cur + num_layers[i]]
         dpr.append(dpr_per_stage)
         cur += num_layers[i]
 
@@ -593,21 +584,23 @@ def dpr_generator(drop_path_rate, num_layers, num_stages):
 
 
 class MPViT(nn.Module):
-    """ Multi-Path ViT class. """
+    """Multi-Path ViT class."""
 
-    def __init__(self,
-                 num_stages=4,
-                 num_layers=[1, 1, 1, 1],
-                 mlp_ratios=[8, 8, 4, 4],
-                 in_chans=3,
-                 num_classes=1000,
-                 num_path=[4, 4, 4, 4],
-                 embed_dims=[64, 128, 256, 512],
-                 num_heads=[8, 8, 8, 8],
-                 drop_path_rate=0.,
-                 out_features=None,
-                 norm="FrozenBN",
-                 **kwargs):
+    def __init__(
+        self,
+        num_stages=4,
+        num_layers=[1, 1, 1, 1],
+        mlp_ratios=[8, 8, 4, 4],
+        in_chans=3,
+        num_classes=1000,
+        num_path=[4, 4, 4, 4],
+        embed_dims=[64, 128, 256, 512],
+        num_heads=[8, 8, 8, 8],
+        drop_path_rate=0.0,
+        out_features=None,
+        norm="FrozenBN",
+        **kwargs,
+    ):
         super().__init__()
 
         self.num_classes = num_classes
@@ -627,7 +620,7 @@ class MPViT(nn.Module):
                 stride=2,
                 pad=1,
                 act_layer=nn.Hardswish,
-                ),
+            ),
             Conv2d_BN(
                 embed_dims[0] // 2,
                 embed_dims[0],
@@ -635,44 +628,47 @@ class MPViT(nn.Module):
                 stride=2,
                 pad=1,
                 act_layer=nn.Hardswish,
-                ),
+            ),
         )
 
         # Patch embeddings.
-        self.patch_embed_stages = nn.ModuleList([
-            Patch_Embed_stage(
-                embed_dims[idx],
-                num_path=num_path[idx],
-                isPool=False if idx == 0 else True,
-            ) for idx in range(self.num_stages)
-        ])
+        self.patch_embed_stages = nn.ModuleList(
+            [
+                Patch_Embed_stage(
+                    embed_dims[idx],
+                    num_path=num_path[idx],
+                    isPool=False if idx == 0 else True,
+                )
+                for idx in range(self.num_stages)
+            ]
+        )
 
         # Multi-Head Convolutional Self-Attention (MHCA)
-        self.mhca_stages = nn.ModuleList([
-            MHCA_stage(
-                embed_dims[idx],
-                embed_dims[idx + 1]
-                if not (idx + 1) == self.num_stages else embed_dims[idx],
-                num_layers[idx],
-                num_heads[idx],
-                mlp_ratios[idx],
-                num_path[idx],
-                drop_path_list=dpr[idx],
-            ) for idx in range(self.num_stages)
-        ])
+        self.mhca_stages = nn.ModuleList(
+            [
+                MHCA_stage(
+                    embed_dims[idx],
+                    embed_dims[idx + 1] if not (idx + 1) == self.num_stages else embed_dims[idx],
+                    num_layers[idx],
+                    num_heads[idx],
+                    mlp_ratios[idx],
+                    num_path[idx],
+                    drop_path_list=dpr[idx],
+                )
+                for idx in range(self.num_stages)
+            ]
+        )
 
         self.apply(self._init_weights)
 
-
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
+            trunc_normal_(m.weight, std=0.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, nn.LayerNorm):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
-
 
     def forward_features(self, x):
 
@@ -687,12 +683,11 @@ class MPViT(nn.Module):
             x = self.mhca_stages[idx](att_inputs)
 
             # for detection backbone
-            stage_name = f'stage{idx+2}' # e.g., stage2, stage3, stage4, stage5
+            stage_name = f"stage{idx+2}"  # e.g., stage2, stage3, stage4, stage5
             if stage_name in self.out_features:
                 feat_out[stage_name] = x
 
         return feat_out
-
 
 
 def mpvit_tiny(**kwargs):

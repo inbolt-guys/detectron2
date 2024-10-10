@@ -9,6 +9,7 @@ import json
 import pycocotools.mask as mask_util
 import random
 
+
 def save_coco(images_annotations, annotations, category_ids, output_folder):
     """
         images, list, create_image_annotation(file, w, h, id)
@@ -27,27 +28,27 @@ def save_coco(images_annotations, annotations, category_ids, output_folder):
             json.dump(coco_format, outfile)
 
 
-
 datasets = ["ARID10", "ARID20", "YCB10"]
 out_dir = f"/home/inbolt/data_hdd/R&D/clara/datasets/OCID-dataset/OCID_COCO"
 for i in ["test", "train"]:
     dataset_output_dir = os.path.join(out_dir, i)
     os.makedirs(dataset_output_dir, exist_ok=True)
 
-images_annotations = {"train":[], "test":[]}
-annotations = {"train":[], "test":[]}
+images_annotations = {"train": [], "test": []}
+annotations = {"train": [], "test": []}
 category_ids = {"object": 1}
-image_id = {"train":0, "test":0}
-annotation_id = {"train":0, "test":0}
+image_id = {"train": 0, "test": 0}
+annotation_id = {"train": 0, "test": 0}
 image_paths = []
 
 for d in datasets:
-    patterns = [f"/home/inbolt/data_hdd/R&D/clara/datasets/OCID-dataset/{d}/*/*/*/*/rgb/*.png",
-        f"/home/inbolt/data_hdd/R&D/clara/datasets/OCID-dataset/{d}/*/*/*/*/*/rgb/*.png"
-        ]
+    patterns = [
+        f"/home/inbolt/data_hdd/R&D/clara/datasets/OCID-dataset/{d}/*/*/*/*/rgb/*.png",
+        f"/home/inbolt/data_hdd/R&D/clara/datasets/OCID-dataset/{d}/*/*/*/*/*/rgb/*.png",
+    ]
     for p in patterns:
         image_paths.extend(sorted(glob.glob(p)))
-    
+
 for ip in image_paths:
 
     folder = os.path.dirname(ip)
@@ -55,7 +56,7 @@ for ip in image_paths:
     im_name = os.path.basename(ip)
 
     seqn = int(os.path.basename(parent_folder).replace("seq", ""))
-    is_train = seqn%6>0
+    is_train = seqn % 6 > 0
     if is_train:
         image_id["train"] += 1
         dataset_output_dir = os.path.join(out_dir, "train")
@@ -68,25 +69,40 @@ for ip in image_paths:
     segm = cv2.imread(os.path.join(parent_folder, "label", im_name), cv2.IMREAD_UNCHANGED)
 
     rgbd = np.dstack((rgb.astype(np.uint16), depth.astype(np.uint16)))
-    
-    cv2.imwrite(dataset_output_dir+"/"+im_name, rgbd)
+
+    cv2.imwrite(dataset_output_dir + "/" + im_name, rgbd)
     h, w = rgb.shape[:2]
     if is_train:
-        images_annotations["train"].append(coco_utils.create_image_annotation(im_name, w, h, image_id["train"]))
+        images_annotations["train"].append(
+            coco_utils.create_image_annotation(im_name, w, h, image_id["train"])
+        )
     else:
-        images_annotations["test"].append(coco_utils.create_image_annotation(im_name, w, h, image_id["test"]))
+        images_annotations["test"].append(
+            coco_utils.create_image_annotation(im_name, w, h, image_id["test"])
+        )
 
-
-    per_object_masks = [segm == i for i in range(2, np.max(segm)+1) if np.any(segm == i)]
+    per_object_masks = [segm == i for i in range(2, np.max(segm) + 1) if np.any(segm == i)]
     if is_train:
         for object in per_object_masks:
             annotation_id["train"] += 1
-            annotations["train"].append(coco_utils.create_annotation_format(image_id["train"], 1, annotation_id["train"], 
-                                                                encoded_mask=mask_util.encode(np.asfortranarray(object))))
+            annotations["train"].append(
+                coco_utils.create_annotation_format(
+                    image_id["train"],
+                    1,
+                    annotation_id["train"],
+                    encoded_mask=mask_util.encode(np.asfortranarray(object)),
+                )
+            )
     else:
         for object in per_object_masks:
             annotation_id["test"] += 1
-            annotations["test"].append(coco_utils.create_annotation_format(image_id["test"], 1, annotation_id["test"], 
-                                                                encoded_mask=mask_util.encode(np.asfortranarray(object))))
+            annotations["test"].append(
+                coco_utils.create_annotation_format(
+                    image_id["test"],
+                    1,
+                    annotation_id["test"],
+                    encoded_mask=mask_util.encode(np.asfortranarray(object)),
+                )
+            )
 
 save_coco(images_annotations, annotations, category_ids, out_dir)

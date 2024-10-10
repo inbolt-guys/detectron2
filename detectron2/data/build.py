@@ -361,7 +361,7 @@ def build_batch_data_loader(
             collate_fn=operator.itemgetter(0),  # don't batch, but yield individual elements
             worker_init_fn=worker_init_reset_seed,
             generator=generator,
-            **kwargs
+            **kwargs,
         )  # yield individual mapped dict
         data_loader = AspectRatioGroupedDataset(data_loader, batch_size)
         if collate_fn is None:
@@ -376,7 +376,7 @@ def build_batch_data_loader(
             collate_fn=trivial_batch_collator if collate_fn is None else collate_fn,
             worker_init_fn=worker_init_reset_seed,
             generator=generator,
-            **kwargs
+            **kwargs,
         )
 
 
@@ -516,7 +516,7 @@ def build_detection_train_loader(
     aspect_ratio_grouping=True,
     num_workers=0,
     collate_fn=None,
-    **kwargs
+    **kwargs,
 ):
     """
     Build a dataloader for object detection with some default features.
@@ -568,7 +568,7 @@ def build_detection_train_loader(
         aspect_ratio_grouping=aspect_ratio_grouping,
         num_workers=num_workers,
         collate_fn=collate_fn,
-        **kwargs
+        **kwargs,
     )
 
 

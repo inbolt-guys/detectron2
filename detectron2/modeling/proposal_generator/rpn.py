@@ -202,7 +202,7 @@ class RPN(nn.Module):
         loss_weight: Union[float, Dict[str, float]] = 1.0,
         box_reg_loss_type: str = "smooth_l1",
         smooth_l1_beta: float = 0.0,
-        images_size: list[Tuple[int,int]] = [(640,853)]
+        images_size: list[Tuple[int, int]] = [(640, 853)],
     ):
         """
         NOTE: this interface is experimental.
@@ -437,7 +437,7 @@ class RPN(nn.Module):
         self,
         features: Dict[str, torch.Tensor],
         gt_instances: Optional[List[Instances]] = None,
-        doubleBackbone: bool = False
+        doubleBackbone: bool = False,
     ):
         """
         Args:
@@ -490,7 +490,7 @@ class RPN(nn.Module):
         pred_objectness_logits: List[torch.Tensor],
         pred_anchor_deltas: List[torch.Tensor],
         image_sizes: List[Tuple[int, int]],
-        doubleBackbone: bool = False
+        doubleBackbone: bool = False,
     ):
         """
         Decode all the predicted box regression deltas to proposals. Find the top proposals
@@ -515,7 +515,7 @@ class RPN(nn.Module):
                 self.post_nms_topk[self.training],
                 self.min_box_size,
                 self.training,
-                doubleBackbone
+                doubleBackbone,
             )
 
     def _decode_proposals(self, anchors: List[Boxes], pred_anchor_deltas: List[torch.Tensor]):

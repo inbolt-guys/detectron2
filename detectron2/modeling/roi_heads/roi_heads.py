@@ -876,6 +876,7 @@ class StandardROIHeads(ROIHeads):
             features = {f: features[f] for f in self.keypoint_in_features}
         return self.keypoint_head(features, instances)
 
+
 @ROI_HEADS_REGISTRY.register()
 class ROIHeadsDoubleBackbone(ROIHeads):
     """

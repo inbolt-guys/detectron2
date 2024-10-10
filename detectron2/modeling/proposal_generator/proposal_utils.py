@@ -28,7 +28,7 @@ def find_top_rpn_proposals(
     post_nms_topk: int,
     min_box_size: float,
     training: bool,
-    doubleBackbone: bool = False
+    doubleBackbone: bool = False,
 ):
     """
     For each feature map, select the `pre_nms_topk` highest scoring proposals,
@@ -131,7 +131,9 @@ def find_top_rpn_proposals(
 
         kept_boxes = boxes[keep]
         if doubleBackbone:
-            kept_boxes.isSecondBackbone = move_device_like(lvl[keep] >= (level_id + 1) / 2, proposals[0])
+            kept_boxes.isSecondBackbone = move_device_like(
+                lvl[keep] >= (level_id + 1) / 2, proposals[0]
+            )
 
         res = Instances(image_size)
         res.proposal_boxes = kept_boxes

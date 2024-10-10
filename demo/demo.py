@@ -32,9 +32,7 @@ def setup_cfg(args):
     # Set score_threshold for builtin models
     cfg.MODEL.RETINANET.SCORE_THRESH_TEST = args.confidence_threshold
     cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = args.confidence_threshold
-    cfg.MODEL.PANOPTIC_FPN.COMBINE.INSTANCES_CONFIDENCE_THRESH = (
-        args.confidence_threshold
-    )
+    cfg.MODEL.PANOPTIC_FPN.COMBINE.INSTANCES_CONFIDENCE_THRESH = args.confidence_threshold
     cfg.freeze()
     return cfg
 
@@ -47,9 +45,7 @@ def get_parser():
         metavar="FILE",
         help="path to config file",
     )
-    parser.add_argument(
-        "--webcam", action="store_true", help="Take inputs from webcam."
-    )
+    parser.add_argument("--webcam", action="store_true", help="Take inputs from webcam.")
     parser.add_argument("--video-input", help="Path to video file.")
     parser.add_argument(
         "--input",
@@ -130,9 +126,7 @@ def main() -> None:
                     assert os.path.isdir(args.output), args.output
                     out_filename = os.path.join(args.output, os.path.basename(path))
                 else:
-                    assert (
-                        len(args.input) == 1
-                    ), "Please specify a directory with args.output"
+                    assert len(args.input) == 1, "Please specify a directory with args.output"
                     out_filename = args.output
                 visualized_output.save(out_filename)
             else:
@@ -159,9 +153,7 @@ def main() -> None:
         num_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
         basename = os.path.basename(args.video_input)
         codec, file_ext = (
-            ("x264", ".mkv")
-            if test_opencv_video_format("x264", ".mkv")
-            else ("mp4v", ".mp4")
+            ("x264", ".mkv") if test_opencv_video_format("x264", ".mkv") else ("mp4v", ".mp4")
         )
         if codec == ".mp4v":
             warnings.warn("x264 codec not available, switching to mp4v")

@@ -49,7 +49,7 @@ def setup_logger(
     abbrev_name=None,
     enable_propagation: bool = False,
     configure_stdout: bool = True,
-    level = logging.DEBUG
+    level=logging.DEBUG
 ):
     """
     Initialize the detectron2 logger and set its verbosity level to "DEBUG".

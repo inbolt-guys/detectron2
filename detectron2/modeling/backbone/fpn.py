@@ -248,19 +248,27 @@ def build_resnet_fpn_backbone(cfg, input_shape: ShapeSpec):
     )
     return backbone
 
+
 class FusionLayer(nn.Module):
-    def __init__(self, in_channels_rgb, in_channels_depth, out_channels, attention = False, relu = False, bias=False):
+    def __init__(
+        self,
+        in_channels_rgb,
+        in_channels_depth,
+        out_channels,
+        attention=False,
+        relu=False,
+        bias=False,
+    ):
         super().__init__()
         self.attention = attention
         self.relu = relu
-        self.rgb_conv = nn.Conv2d(in_channels_rgb, out_channels//2, kernel_size=1, bias=bias)
-        self.depth_conv = nn.Conv2d(in_channels_depth, out_channels//2, kernel_size=1, bias=bias)
+        self.rgb_conv = nn.Conv2d(in_channels_rgb, out_channels // 2, kernel_size=1, bias=bias)
+        self.depth_conv = nn.Conv2d(in_channels_depth, out_channels // 2, kernel_size=1, bias=bias)
         self.out_channels = out_channels
         if attention:
             self.attention_conv = nn.Conv2d(out_channels, 2, kernel_size=1, bias=True)
         self.fusion_conv = nn.Conv2d(out_channels, out_channels, kernel_size=1, bias=bias)
 
-    
     def forward(self, rgb_features, depth_features):
         rgb_transformed = self.rgb_conv(rgb_features)
         depth_transformed = self.depth_conv(depth_features)
@@ -272,7 +280,7 @@ class FusionLayer(nn.Module):
 
             weighted_rgb = rgb_weight * rgb_transformed
             weighted_depth = depth_weight * depth_transformed
-            
+
             fused_features = torch.cat([weighted_rgb, weighted_depth], dim=1)
 
         fused_features = self.fusion_conv(fused_features)
@@ -281,11 +289,11 @@ class FusionLayer(nn.Module):
             fused_features = F.relu(fused_features)
         return fused_features
 
+
 class DFPN(Backbone):
     """
     Double FPN for BGR and Depth / Normals
     """
-
 
     def __init__(
         self,
@@ -293,7 +301,7 @@ class DFPN(Backbone):
         fpnDepth,
         mode: str = "simple",
         conv_dims: List[int] = (-1,),
-        fusion_out_channels: int = -1
+        fusion_out_channels: int = -1,
     ):
         super(DFPN, self).__init__()
         assert isinstance(fpnRGB, FPN) and isinstance(fpnDepth, FPN)
@@ -302,13 +310,15 @@ class DFPN(Backbone):
         self.fpnRGB = fpnRGB
         self.fpnDepth = fpnDepth
         self.mode = mode
-        
+
         if mode == "conv":
             self.convs = nn.ModuleDict()
             fpnRGB_output_shapes = self.fpnRGB.output_shape()
             fpnDepth_output_shapes = self.fpnDepth.output_shape()
             for name in fpnRGB_output_shapes:
-                cur_channels = fpnRGB_output_shapes[name].channels + fpnDepth_output_shapes[name].channels
+                cur_channels = (
+                    fpnRGB_output_shapes[name].channels + fpnDepth_output_shapes[name].channels
+                )
                 if len(conv_dims) == 1:
                     out_channels = cur_channels if conv_dims[0] == -1 else conv_dims[0]
                     # 3x3 conv for the hidden representation
@@ -335,14 +345,14 @@ class DFPN(Backbone):
                 depth_shape = fpnDepth_output_shapes[name]
                 if fusion_out_channels == -1:
                     fusion_out_channels = rgb_shape.channels + depth_shape.channels
-                self.fusion_layers[name] = FusionLayer(rgb_shape.channels, depth_shape.channels, fusion_out_channels, attention=True)
+                self.fusion_layers[name] = FusionLayer(
+                    rgb_shape.channels, depth_shape.channels, fusion_out_channels, attention=True
+                )
         elif mode == "add":
             fpnRGB_output_shapes = self.fpnRGB.output_shape()
             fpnDepth_output_shapes = self.fpnDepth.output_shape()
             for name in fpnRGB_output_shapes:
                 assert fpnRGB_output_shapes[name] == fpnDepth_output_shapes[name]
-
-                
 
     def _get_conv(self, in_channels, out_channels):
         return Conv2d(
@@ -383,9 +393,9 @@ class DFPN(Backbone):
         out = {}
         if self.mode == "simple":
             for f, v in fpnFeaturesRGB.items():
-                out[f+"c"] = v
+                out[f + "c"] = v
             for f, v in fpnFeaturesDepth.items():
-                out[f+"d"] = v
+                out[f + "d"] = v
             assert len(out) == len(self.fpnRGB._out_features) + len(self.fpnDepth._out_features)
         elif self.mode == "cat":
             for f in fpnFeaturesRGB:
@@ -406,15 +416,18 @@ class DFPN(Backbone):
         out = {}
         if self.mode == "simple":
             for f, v in self.fpnRGB.output_shape().items():
-                out[f+"c"] = v
+                out[f + "c"] = v
             for f, v in self.fpnDepth.output_shape().items():
-                out[f+"d"] = v
+                out[f + "d"] = v
         elif self.mode == "cat":
             rgb_shape = self.fpnRGB.output_shape()
             depth_shape = self.fpnDepth.output_shape()
             for f in rgb_shape:
-                assert rgb_shape[f].stride == depth_shape[f].stride 
-                out[f] = ShapeSpec(channels=rgb_shape[f].channels + depth_shape[f].channels, stride=rgb_shape[f].stride)
+                assert rgb_shape[f].stride == depth_shape[f].stride
+                out[f] = ShapeSpec(
+                    channels=rgb_shape[f].channels + depth_shape[f].channels,
+                    stride=rgb_shape[f].stride,
+                )
         elif self.mode == "conv":
             assert self.conv_out_channels > 0
             rgb_shape = self.fpnRGB.output_shape()
@@ -423,7 +436,9 @@ class DFPN(Backbone):
         elif self.mode == "late_fpn":
             rgb_shape = self.fpnRGB.output_shape()
             for f in rgb_shape:
-                out[f] = ShapeSpec(channels=self.fusion_layers[f].out_channels, stride=rgb_shape[f].stride)
+                out[f] = ShapeSpec(
+                    channels=self.fusion_layers[f].out_channels, stride=rgb_shape[f].stride
+                )
         elif self.mode == "add":
             rgb_shape = self.fpnRGB.output_shape()
             for f in rgb_shape:
@@ -472,13 +487,16 @@ def build_resnet_double_fpn_backbone(cfg, input_shape: ShapeSpec):
         fuse_type=cfg.MODEL.FPN.FUSE_TYPE,
     )
     backbone = DFPN(
-        fpnRGB = fpnRGB,
-        fpnDepth = fpnDepth,
-        mode = cfg.MODEL.BACKBONE.MODE,
+        fpnRGB=fpnRGB,
+        fpnDepth=fpnDepth,
+        mode=cfg.MODEL.BACKBONE.MODE,
         conv_dims=cfg.MODEL.BACKBONE.CONV_DIMS if cfg.MODEL.BACKBONE.MODE == "conv" else None,
-        fusion_out_channels=cfg.MODEL.BACKBONE.FUSION_OUT_CHANNELS if cfg.MODEL.BACKBONE.MODE == "late_fpn" else None
+        fusion_out_channels=cfg.MODEL.BACKBONE.FUSION_OUT_CHANNELS
+        if cfg.MODEL.BACKBONE.MODE == "late_fpn"
+        else None,
     )
     return backbone
+
 
 @BACKBONE_REGISTRY.register()
 def build_double_resnet_fpn_backbone(cfg, input_shape: ShapeSpec):
@@ -506,6 +524,7 @@ def build_double_resnet_fpn_backbone(cfg, input_shape: ShapeSpec):
         fuse_type=cfg.MODEL.FPN.FUSE_TYPE,
     )
     return backbone
+
 
 @BACKBONE_REGISTRY.register()
 def build_retinanet_resnet_fpn_backbone(cfg, input_shape: ShapeSpec):

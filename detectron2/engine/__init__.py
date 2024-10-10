@@ -20,5 +20,5 @@ from .defaults import (
     RGBDTrainer,
     DepthTrainer,
     DepthPredictor,
-    CopyPasteRGBTrainer
+    CopyPasteRGBTrainer,
 )

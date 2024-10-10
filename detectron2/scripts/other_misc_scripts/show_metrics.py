@@ -10,9 +10,21 @@ with open(metrics_file_path) as metrics:
     lines = metrics.readlines()
     d = {}
     all_keys = []
-    interesting_keys = ["eta_seconds", "fast_rcnn/cls_accuracy", "fast_rcnn/false_negative", 
-            "fast_rcnn/fg_cls_accuracy", "loss_box_reg", "loss_cls", "loss_mask", "loss_rpn_cls", "loss_rpn_loc", "mask_rcnn/accuracy", 
-            "mask_rcnn/false_negative", "mask_rcnn/false_positive", "total_loss"]
+    interesting_keys = [
+        "eta_seconds",
+        "fast_rcnn/cls_accuracy",
+        "fast_rcnn/false_negative",
+        "fast_rcnn/fg_cls_accuracy",
+        "loss_box_reg",
+        "loss_cls",
+        "loss_mask",
+        "loss_rpn_cls",
+        "loss_rpn_loc",
+        "mask_rcnn/accuracy",
+        "mask_rcnn/false_negative",
+        "mask_rcnn/false_positive",
+        "total_loss",
+    ]
     for l in lines[190:]:
         data = json.loads(l)
         for k, v in data.items():
@@ -21,7 +33,8 @@ with open(metrics_file_path) as metrics:
                 all_keys.append(k)
             d[k].append(v)
     print("all keys")
-    for k in all_keys: print(k) 
+    for k in all_keys:
+        print(k)
     for k in interesting_keys:
         plt.plot(d[k])
         plt.title(k)

@@ -535,7 +535,7 @@ class RandomContrast(Augmentation):
     See: https://pillow.readthedocs.io/en/3.0.x/reference/ImageEnhance.html
     """
 
-    def __init__(self, intensity_min, intensity_max, input_format = None):
+    def __init__(self, intensity_min, intensity_max, input_format=None):
         """
         Args:
             intensity_min (float): Minimum augmentation
@@ -547,9 +547,19 @@ class RandomContrast(Augmentation):
     def get_transform(self, image):
         w = np.random.uniform(self.intensity_min, self.intensity_max)
         if image.shape[-1] == 4 and (self.input_format == "RGBD" or self.input_format == "RGBRD"):
-            return BlendTransform(src_image=image[:, :, :3].mean(), src_weight=1 - w, dst_weight=w, depth=image[:, :, 3])
+            return BlendTransform(
+                src_image=image[:, :, :3].mean(),
+                src_weight=1 - w,
+                dst_weight=w,
+                depth=image[:, :, 3],
+            )
         elif image.shape[-1] == 4 and self.input_format == "GN":
-            return BlendTransform(src_image=image[:, :, 0].mean(), src_weight=1 - w, dst_weight=w, depth=image[:, :, 1:])
+            return BlendTransform(
+                src_image=image[:, :, 0].mean(),
+                src_weight=1 - w,
+                dst_weight=w,
+                depth=image[:, :, 1:],
+            )
         elif image.shape[-1] == 4:
             raise ValueError("input format must be RGBD or GN if input shape is 4")
 
@@ -568,7 +578,7 @@ class RandomBrightness(Augmentation):
     See: https://pillow.readthedocs.io/en/3.0.x/reference/ImageEnhance.html
     """
 
-    def __init__(self, intensity_min, intensity_max, input_format = None):
+    def __init__(self, intensity_min, intensity_max, input_format=None):
         """
         Args:
             intensity_min (float): Minimum augmentation
@@ -582,7 +592,9 @@ class RandomBrightness(Augmentation):
         if image.shape[-1] == 4 and (self.input_format == "RGBD" or self.input_format == "RGBRD"):
             return BlendTransform(src_image=0, src_weight=1 - w, dst_weight=w, depth=image[:, :, 3])
         elif image.shape[-1] == 4 and self.input_format == "GN":
-            return BlendTransform(src_image=0, src_weight=1 - w, dst_weight=w, depth=image[:, :, 1:])
+            return BlendTransform(
+                src_image=0, src_weight=1 - w, dst_weight=w, depth=image[:, :, 1:]
+            )
         elif image.shape[-1] == 4:
             raise ValueError("input format must be RGBD or GN if input shape is 4")
 
@@ -602,7 +614,7 @@ class RandomSaturation(Augmentation):
     See: https://pillow.readthedocs.io/en/3.0.x/reference/ImageEnhance.html
     """
 
-    def __init__(self, intensity_min, intensity_max, input_format = None):
+    def __init__(self, intensity_min, intensity_max, input_format=None):
         """
         Args:
             intensity_min (float): Minimum augmentation (1 preserves input).
@@ -614,13 +626,18 @@ class RandomSaturation(Augmentation):
     def get_transform(self, image):
         assert image.shape[-1] in [3, 4], "RandomSaturation only works on RGB images"
         if image.shape[-1] == 4:
-            assert (self.input_format == "RGBD" or self.input_format == "RGBRD"), "needs RGB for random saturation to work"
+            assert (
+                self.input_format == "RGBD" or self.input_format == "RGBRD"
+            ), "needs RGB for random saturation to work"
         w = np.random.uniform(self.intensity_min, self.intensity_max)
         rgb = image[:, :, :3]
         grayscale = rgb.dot([0.299, 0.587, 0.114])[:, :, np.newaxis]
         if image.shape[-1] == 3:
             return BlendTransform(src_image=grayscale, src_weight=1 - w, dst_weight=w)
-        return BlendTransform(src_image=grayscale, src_weight=1 - w, dst_weight=w, depth=image[:, :, 3])
+        return BlendTransform(
+            src_image=grayscale, src_weight=1 - w, dst_weight=w, depth=image[:, :, 3]
+        )
+
 
 class RandomLighting(Augmentation):
     """
@@ -631,7 +648,7 @@ class RandomLighting(Augmentation):
     with standard deviation given by the scale parameter.
     """
 
-    def __init__(self, scale, input_format = None):
+    def __init__(self, scale, input_format=None):
         """
         Args:
             scale (float): Standard deviation of principal component weighting.
@@ -646,13 +663,22 @@ class RandomLighting(Augmentation):
     def get_transform(self, image):
         assert image.shape[-1] in [3, 4], "RandomSaturation only works on RGB images"
         if image.shape[-1] == 4:
-            assert self.input_format == "RGBD" or self.input_format == "RGBRD", "needs RGB for random saturation to work"
+            assert (
+                self.input_format == "RGBD" or self.input_format == "RGBRD"
+            ), "needs RGB for random saturation to work"
         weights = np.random.normal(scale=self.scale, size=3)
         if image.shape[-1] == 3:
             return BlendTransform(
-                src_image=self.eigen_vecs.dot(weights * self.eigen_vals), src_weight=1.0, dst_weight=1.0)
+                src_image=self.eigen_vecs.dot(weights * self.eigen_vals),
+                src_weight=1.0,
+                dst_weight=1.0,
+            )
         return BlendTransform(
-            src_image=self.eigen_vecs.dot(weights * self.eigen_vals), src_weight=1.0, dst_weight=1.0, depth=image[:, :, 3])
+            src_image=self.eigen_vecs.dot(weights * self.eigen_vals),
+            src_weight=1.0,
+            dst_weight=1.0,
+            depth=image[:, :, 3],
+        )
 
 
 class RandomResize(Augmentation):
@@ -757,12 +783,15 @@ class MinIoURandomCrop(Augmentation):
                         continue
                 return CropTransform(int(left), int(top), int(new_w), int(new_h))
 
+
 class BlendTransform(Transform):
     """
     Transforms pixel colors with PIL enhance functions.
     """
 
-    def __init__(self, src_image: np.ndarray, src_weight: float, dst_weight: float, depth: np.ndarray = None):
+    def __init__(
+        self, src_image: np.ndarray, src_weight: float, dst_weight: float, depth: np.ndarray = None
+    ):
         """
         Blends the input image (dst_image) with the src_image using formula:
         ``src_weight * src_image + dst_weight * dst_image``
@@ -811,7 +840,9 @@ class BlendTransform(Transform):
                 img = self.src_weight * self.src_image + self.dst_weight * img
                 return np.dstack((np.clip(img, 0, 255).astype(np.uint8), self.depth))
             else:
-                return np.dstack((self.src_weight * self.src_image + self.dst_weight * img, self.depth))
+                return np.dstack(
+                    (self.src_weight * self.src_image + self.dst_weight * img, self.depth)
+                )
 
     def apply_coords(self, coords: np.ndarray) -> np.ndarray:
         """

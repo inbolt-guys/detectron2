@@ -27,6 +27,7 @@ from detectron2.solver.build import maybe_add_gradient_clipping
 from detectron2.modeling.backbone.MPViT.config import add_mpvit_config
 from detectron2.modeling.backbone.MPViT.dataset_mapper import DetrDatasetMapper
 
+
 class Trainer(DefaultTrainer):
     @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
@@ -63,9 +64,9 @@ class Trainer(DefaultTrainer):
             # detectron2 doesn't have full model gradient clipping now
             clip_norm_val = cfg.SOLVER.CLIP_GRADIENTS.CLIP_VALUE
             enable = (
-                    cfg.SOLVER.CLIP_GRADIENTS.ENABLED
-                    and cfg.SOLVER.CLIP_GRADIENTS.CLIP_TYPE == "full_model"
-                    and clip_norm_val > 0.0
+                cfg.SOLVER.CLIP_GRADIENTS.ENABLED
+                and cfg.SOLVER.CLIP_GRADIENTS.CLIP_TYPE == "full_model"
+                and clip_norm_val > 0.0
             )
 
             class FullModelGradientClippingOptimizer(optim):
@@ -90,8 +91,6 @@ class Trainer(DefaultTrainer):
         if not cfg.SOLVER.CLIP_GRADIENTS.CLIP_TYPE == "full_model":
             optimizer = maybe_add_gradient_clipping(cfg, optimizer)
         return optimizer
-
-
 
 
 def setup(args):
@@ -132,8 +131,9 @@ if __name__ == "__main__":
 
     if args.debug:
         import debugpy
+
         print("Enabling attach starts.")
-        debugpy.listen(address=('0.0.0.0', 9310))
+        debugpy.listen(address=("0.0.0.0", 9310))
         debugpy.wait_for_client()
         print("Enabling attach ends.")
 

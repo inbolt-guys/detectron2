@@ -25,7 +25,9 @@ if __name__ == "__main__":
 
     cfg_detectron = get_cfg()
     cfg_detectron.set_new_allowed(True)
-    cfg_detectron.merge_from_file("/app/detectronDocker/detectron2/configs/double_backbones_configs/RCNN_classic_for_normals.yaml")
+    cfg_detectron.merge_from_file(
+        "/app/detectronDocker/detectron2/configs/double_backbones_configs/RCNN_classic_for_normals.yaml"
+    )
     cfg_detectron.SOLVER.CHECKPOINT_PERIOD = 100000
     cfg_detectron.TEST.EVAL_PERIOD = 0
     cfg_detectron.SOLVER.MAX_TO_KEEP = 10
@@ -34,7 +36,7 @@ if __name__ == "__main__":
     cfg_detectron.SOLVER.IMS_PER_BATCH = 2
 
     num_gpu = 1
-    bs = (num_gpu * 2)
+    bs = num_gpu * 2
     cfg_detectron.SOLVER.BASE_LR = 0.01 * bs / 16  # pick a good LR
 
     ## train model ##
@@ -49,11 +51,17 @@ if __name__ == "__main__":
         hardware=hardware,
     )
 
-    pipeline.register_dataset("coco_2017_normals_train", 
-                              coco_train_folder, annotations_file="/app/detectronDocker/dataset_for_detectron/coco2017_depth/GN/annotations/instances_train2017.json")
-    pipeline.register_dataset("coco_2017_normals_val", 
-                              coco_val_folder, annotations_file="/app/detectronDocker/dataset_for_detectron/coco2017_depth/GN/annotations/instances_val2017.json")
-    
+    pipeline.register_dataset(
+        "coco_2017_normals_train",
+        coco_train_folder,
+        annotations_file="/app/detectronDocker/dataset_for_detectron/coco2017_depth/GN/annotations/instances_train2017.json",
+    )
+    pipeline.register_dataset(
+        "coco_2017_normals_val",
+        coco_val_folder,
+        annotations_file="/app/detectronDocker/dataset_for_detectron/coco2017_depth/GN/annotations/instances_val2017.json",
+    )
+
     pipeline.prepare_training(resume=True)
     trainer = pipeline.trainer
     trainer.train()

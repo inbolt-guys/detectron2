@@ -250,7 +250,7 @@ class SimpleTrainer(TrainerBase):
         gather_metric_period=1,
         zero_grad_before_forward=False,
         async_write_metrics=False,
-        loss_weights = None
+        loss_weights=None,
     ):
         """
         Args:
@@ -273,17 +273,16 @@ class SimpleTrainer(TrainerBase):
         like evaluation during training, you can overwrite its train() method.
         """
         model.train()
-        if loss_weights is None: #For backward compatibility
+        if loss_weights is None:  # For backward compatibility
             self.loss_weights = {
-                'loss_cls': 1.0,
-                'loss_box_reg': 1.0,
-                'loss_mask': 1.0,  
-                'loss_rpn_cls': 1.0,
-                'loss_rpn_loc': 1.0,
-                }
+                "loss_cls": 1.0,
+                "loss_box_reg": 1.0,
+                "loss_mask": 1.0,
+                "loss_rpn_cls": 1.0,
+                "loss_rpn_loc": 1.0,
+            }
         else:
             self.loss_weights = loss_weights
-
 
         self.model = model
         self.data_loader = data_loader
@@ -325,12 +324,13 @@ class SimpleTrainer(TrainerBase):
             loss_dict = {"total_loss": loss_dict}
         else:
             losses = (
-                self.loss_weights['loss_cls'] * loss_dict['loss_cls'] +
-                self.loss_weights['loss_box_reg'] * loss_dict['loss_box_reg'] +
-                self.loss_weights['loss_mask'] * loss_dict['loss_mask'] +
-                self.loss_weights['loss_rpn_cls'] * loss_dict['loss_rpn_cls'] +
-                self.loss_weights['loss_rpn_loc'] * loss_dict['loss_rpn_loc'])
-            
+                self.loss_weights["loss_cls"] * loss_dict["loss_cls"]
+                + self.loss_weights["loss_box_reg"] * loss_dict["loss_box_reg"]
+                + self.loss_weights["loss_mask"] * loss_dict["loss_mask"]
+                + self.loss_weights["loss_rpn_cls"] * loss_dict["loss_rpn_cls"]
+                + self.loss_weights["loss_rpn_loc"] * loss_dict["loss_rpn_loc"]
+            )
+
         if not self.zero_grad_before_forward:
             """
             If you need to accumulate gradients or do something similar, you can
@@ -469,7 +469,7 @@ class AMPTrainer(SimpleTrainer):
         precision: torch.dtype = torch.float16,
         log_grad_scaler: bool = False,
         async_write_metrics=False,
-        loss_weights = None
+        loss_weights=None,
     ):
         """
         Args:
@@ -480,11 +480,12 @@ class AMPTrainer(SimpleTrainer):
         """
         if loss_weights is None:
             self.loss_weights = {
-            'loss_cls': 1.0,
-            'loss_box_reg': 1.0,
-            'loss_mask': 1.0,
-            'loss_rpn_cls': 1.0,
-            'loss_rpn_loc': 1.0}
+                "loss_cls": 1.0,
+                "loss_box_reg": 1.0,
+                "loss_mask": 1.0,
+                "loss_rpn_cls": 1.0,
+                "loss_rpn_loc": 1.0,
+            }
         else:
             self.loss_weights = loss_weights
 
@@ -526,11 +527,12 @@ class AMPTrainer(SimpleTrainer):
                 loss_dict = {"total_loss": loss_dict}
             else:
                 losses = (
-                    self.loss_weights['loss_cls'] * loss_dict['loss_cls'] +
-                    self.loss_weights['loss_box_reg'] * loss_dict['loss_box_reg'] +
-                    self.loss_weights['loss_mask'] * loss_dict['loss_mask'] +
-                    self.loss_weights['loss_rpn_cls'] * loss_dict['loss_rpn_cls'] +
-                    self.loss_weights['loss_rpn_loc'] * loss_dict['loss_rpn_loc'])
+                    self.loss_weights["loss_cls"] * loss_dict["loss_cls"]
+                    + self.loss_weights["loss_box_reg"] * loss_dict["loss_box_reg"]
+                    + self.loss_weights["loss_mask"] * loss_dict["loss_mask"]
+                    + self.loss_weights["loss_rpn_cls"] * loss_dict["loss_rpn_cls"]
+                    + self.loss_weights["loss_rpn_loc"] * loss_dict["loss_rpn_loc"]
+                )
 
         if not self.zero_grad_before_forward:
             self.optimizer.zero_grad()

@@ -55,7 +55,7 @@ from detectron2.evaluation.coco_evaluation import COCOEvaluator
 from detectron2.data import detection_utils as utils
 from detectron2.data.transforms.coco import CocoDetectionCP
 from detectron2.data.transforms.visualize import display_instances
-from detectron2.data import MetadataCatalog,DatasetCatalog
+from detectron2.data import MetadataCatalog, DatasetCatalog
 
 from . import hooks
 from .train_loop import AMPTrainer, SimpleTrainer, TrainerBase
@@ -331,7 +331,8 @@ class DefaultPredictor:
 
             predictions = self.model([inputs])[0]
             return predictions
-        
+
+
 class RGBDPredictor:
     """
     Create a simple end-to-end predictor with the given config that runs on
@@ -359,6 +360,7 @@ class RGBDPredictor:
         inputs = cv2.imread("input.jpg")
         outputs = pred(inputs)
     """
+
     def log_config(self):
         logger = logging.getLogger(__name__)
         logger.info(
@@ -431,8 +433,8 @@ class RGBDPredictor:
                 image[..., [0, 2]] = image[..., [2, 0]]
             elif self.input_format == "RGBRD":
                 image[..., [0, 2]] = image[..., [2, 0]]
-                image = image.astype(np.float32)  
-                
+                image = image.astype(np.float32)
+
             height, width = image.shape[:2]
             image = self.aug.get_transform(image).apply_image(image)
             image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))
@@ -442,7 +444,8 @@ class RGBDPredictor:
 
             predictions = self.model([inputs])[0]
             return predictions
-        
+
+
 class DepthPredictor:
     """
     Create a simple end-to-end predictor with the given config that runs on
@@ -474,7 +477,9 @@ class DepthPredictor:
     def __init__(self, cfg):
         self.cfg = cfg.clone()  # cfg can be modified by model
         self.input_format = cfg.INPUT.FORMAT
-        assert self.input_format == "D" or self.input_format == "N" or self.input_format == "RD", self.input_format
+        assert (
+            self.input_format == "D" or self.input_format == "N" or self.input_format == "RD"
+        ), self.input_format
         self.model = build_model(self.cfg)
         self.model.eval()
         if len(cfg.DATASETS.TEST):
@@ -556,7 +561,7 @@ class DefaultTrainer(TrainerBase):
         cfg (CfgNode):
     """
 
-    def __init__(self, cfg, mapper = None):
+    def __init__(self, cfg, mapper=None):
         """
         Args:
             cfg (CfgNode):
@@ -644,7 +649,13 @@ class DefaultTrainer(TrainerBase):
         # This is not always the best: if checkpointing has a different frequency,
         # some checkpoints may have more precise statistics than others.
         if comm.is_main_process():
-            ret.append(hooks.PeriodicCheckpointer(self.checkpointer, cfg.SOLVER.CHECKPOINT_PERIOD, max_to_keep=cfg.SOLVER.MAX_TO_KEEP))
+            ret.append(
+                hooks.PeriodicCheckpointer(
+                    self.checkpointer,
+                    cfg.SOLVER.CHECKPOINT_PERIOD,
+                    max_to_keep=cfg.SOLVER.MAX_TO_KEEP,
+                )
+            )
 
         def test_and_save_results():
             self._last_eval_results = self.test(self.cfg, self.model)
@@ -652,7 +663,11 @@ class DefaultTrainer(TrainerBase):
 
         # Do evaluation after checkpointer, because then if it fails,
         # we can use the saved checkpoint to debug.
-        ret.append(hooks.EvalHook(cfg.TEST.EVAL_PERIOD, test_and_save_results, eval_after_train=cfg.EVAl_AFTER_TRAIN))
+        ret.append(
+            hooks.EvalHook(
+                cfg.TEST.EVAL_PERIOD, test_and_save_results, eval_after_train=cfg.EVAl_AFTER_TRAIN
+            )
+        )
 
         if comm.is_main_process():
             # Here the default print/log frequency of each writer is used.
@@ -676,7 +691,7 @@ class DefaultTrainer(TrainerBase):
             list[EventWriter]: a list of :class:`EventWriter` objects.
         """
         return default_writers(self.cfg.OUTPUT_DIR, self.max_iter)
-    
+
     def log_config(self):
         logger = logging.getLogger(__name__)
         logger.info(
@@ -724,9 +739,11 @@ class DefaultTrainer(TrainerBase):
         Returns:
             OrderedDict of results, if evaluation is enabled. Otherwise None.
         """
-        #Logging important infos
+        # Logging important infos
         self.log_config()
-        assert not(len(self.cfg.MODEL.FREEZE_INCLUDE)>0 and len(self.cfg.MODEL.FREEZE_ALL_EXCLUDE)>0), "Cannot use FREEZE_INCLUDE when FREEZE_ALL_EXCLUDE is used"
+        assert not (
+            len(self.cfg.MODEL.FREEZE_INCLUDE) > 0 and len(self.cfg.MODEL.FREEZE_ALL_EXCLUDE) > 0
+        ), "Cannot use FREEZE_INCLUDE when FREEZE_ALL_EXCLUDE is used"
         if self.cfg.MODEL.FREEZE_INCLUDE:
             for name, param in self.model.named_parameters():
                 if any(layer in name for layer in self.cfg.MODEL.FREEZE_INCLUDE):
@@ -735,8 +752,8 @@ class DefaultTrainer(TrainerBase):
                     logger.info(f"Froze: {name}")
         elif self.cfg.MODEL.FREEZE_ALL_EXCLUDE:
             for name, param in self.model.named_parameters():
-                if not(any(layer in name for layer in self.cfg.MODEL.FREEZE_ALL_EXCLUDE)):
-                    param.requires_grad = False   
+                if not (any(layer in name for layer in self.cfg.MODEL.FREEZE_ALL_EXCLUDE)):
+                    param.requires_grad = False
                     logger = logging.getLogger(__name__)
                     logger.info(f"Froze: {name}")
 
@@ -833,7 +850,7 @@ Alternatively, you can call evaluation functions yourself (see Colab balloon tut
         )
 
     @classmethod
-    def test(cls, cfg, model, evaluators=None, return_inference_time = False):
+    def test(cls, cfg, model, evaluators=None, return_inference_time=False):
         """
         Evaluate the given model. The given model is expected to already contain
         weights to evaluate.
@@ -873,7 +890,9 @@ Alternatively, you can call evaluation functions yourself (see Colab balloon tut
                     )
                     results[dataset_name] = {}
                     continue
-            results_i = inference_on_dataset(model, data_loader, evaluator, return_inference_time=return_inference_time)
+            results_i = inference_on_dataset(
+                model, data_loader, evaluator, return_inference_time=return_inference_time
+            )
             results[dataset_name] = results_i
             if comm.is_main_process():
                 assert isinstance(
@@ -959,81 +978,90 @@ Alternatively, you can call evaluation functions yourself (see Colab balloon tut
             cfg.freeze()
         return cfg
 
+
 class CopyPasteRGBTrainer(DefaultTrainer):
     @classmethod
     def get_mapper(cls, cfg):
-        transform = A.Compose([A.CopyPaste(blend=True, sigma=1, pct_objects_paste=0.1, p=1.0)], bbox_params=A.BboxParams(format="coco")) #pct_objects_paste is a guess
+        transform = A.Compose(
+            [A.CopyPaste(blend=True, sigma=1, pct_objects_paste=0.1, p=1.0)],
+            bbox_params=A.BboxParams(format="coco"),
+        )  # pct_objects_paste is a guess
         data = CocoDetectionCP(
-            '/app/detectronDocker/dataset_for_detectron/coco2017_depth/RGBD/val2017/', 
-            '/app/detectronDocker/dataset_for_detectron/coco2017_depth/RGBD/annotations/instances_val2017.json', 
-            transform
+            "/app/detectronDocker/dataset_for_detectron/coco2017_depth/RGBD/val2017/",
+            "/app/detectronDocker/dataset_for_detectron/coco2017_depth/RGBD/annotations/instances_val2017.json",
+            transform,
         )
         dataset_dicts_train = DatasetCatalog.get("coco_2017_depth_train")
-        data_id_to_num = {i:q for q,i in enumerate(data.ids)}
+        data_id_to_num = {i: q for q, i in enumerate(data.ids)}
         ALL_IDS = list(data_id_to_num.keys())
-        dataset_dicts_train = [i for i in dataset_dicts_train if i['image_id'] in ALL_IDS]
-        BOX_MODE = dataset_dicts_train[0]['annotations'][0]['bbox_mode']
+        dataset_dicts_train = [i for i in dataset_dicts_train if i["image_id"] in ALL_IDS]
+        BOX_MODE = dataset_dicts_train[0]["annotations"][0]["bbox_mode"]
         train_metadata = MetadataCatalog.get("coco_2017_depth_train")
 
         def mapper(dataset_dict):
             input_format = cfg.INPUT.FORMAT
             dataset_dict = copy.deepcopy(dataset_dict)
 
+            # print(dataset_dict)
 
-            #print(dataset_dict)
-
-            img_id = dataset_dict['image_id']
+            img_id = dataset_dict["image_id"]
             aug_sample = data[data_id_to_num[img_id]]
-            image = aug_sample['image']
+            image = aug_sample["image"]
 
-            display_instances(image, np.stack([b[:4] for b in aug_sample["bboxes"]], axis=0),
-                                np.array(aug_sample['masks']).transpose(1, 2, 0),
-                                np.array([b[-2] for b in aug_sample["bboxes"]]), 
-                                np.array([b[-1] for b in aug_sample["bboxes"]]))
-            
-            bboxes = aug_sample['bboxes']
+            display_instances(
+                image,
+                np.stack([b[:4] for b in aug_sample["bboxes"]], axis=0),
+                np.array(aug_sample["masks"]).transpose(1, 2, 0),
+                np.array([b[-2] for b in aug_sample["bboxes"]]),
+                np.array([b[-1] for b in aug_sample["bboxes"]]),
+            )
+
+            bboxes = aug_sample["bboxes"]
             box_classes = np.array([b[-2] for b in bboxes])
             boxes = np.stack([b[:4] for b in bboxes], axis=0)
             mask_indices = np.array([b[-1] for b in bboxes])
 
             dataset_dict["image"] = torch.as_tensor(image.transpose(2, 0, 1).astype("float32"))
-            masks = aug_sample['masks']
+            masks = aug_sample["masks"]
 
             annos = []
-        
-            for enum,index in enumerate(mask_indices):
+
+            for enum, index in enumerate(mask_indices):
                 curr_mask = masks[index]
-                
+
                 fortran_ground_truth_binary_mask = np.asfortranarray(curr_mask)
                 encoded_ground_truth = mask.encode(fortran_ground_truth_binary_mask)
                 ground_truth_area = mask.area(encoded_ground_truth)
                 ground_truth_bounding_box = mask.toBbox(encoded_ground_truth)
                 contours = measure.find_contours(curr_mask, 0.5)
-                
+
                 annotation = {
-                        "segmentation": [],
-                        "iscrowd": 0,
-                        "bbox": ground_truth_bounding_box.tolist(), 
-                        "category_id": train_metadata.thing_dataset_id_to_contiguous_id[box_classes[enum]]  ,
-                        "bbox_mode":BOX_MODE       
-                    }
+                    "segmentation": [],
+                    "iscrowd": 0,
+                    "bbox": ground_truth_bounding_box.tolist(),
+                    "category_id": train_metadata.thing_dataset_id_to_contiguous_id[
+                        box_classes[enum]
+                    ],
+                    "bbox_mode": BOX_MODE,
+                }
                 for contour in contours:
                     contour = np.flip(contour, axis=1)
                     segmentation = contour.ravel().tolist()
                     annotation["segmentation"].append(segmentation)
-                    
+
                 annos.append(annotation)
-            
 
             image_shape = image.shape[:2]  # h, w
-        
-            instances = utils.annotations_to_instances(annos, image_shape, mask_format=cfg.INPUT.MASK_FORMAT)
+
+            instances = utils.annotations_to_instances(
+                annos, image_shape, mask_format=cfg.INPUT.MASK_FORMAT
+            )
             dataset_dict["instances"] = utils.filter_empty_instances(instances)
 
             min_size = cfg.INPUT.MIN_SIZE_TRAIN
             max_size = cfg.INPUT.MAX_SIZE_TRAIN
             sample_style = "choice"
-                                
+
             transform_list = [
                 T.ResizeShortestEdge(min_size, max_size, sample_style),
                 T.RandomBrightness(0.5, 2.8, input_format),
@@ -1051,12 +1079,14 @@ class CopyPasteRGBTrainer(DefaultTrainer):
                 for obj in dataset_dict.pop("annotations")
                 if obj.get("iscrowd", 0) == 0
             ]
-            instances = utils.annotations_to_instances(annos, image.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT)
+            instances = utils.annotations_to_instances(
+                annos, image.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT
+            )
             dataset_dict["instances"] = utils.filter_empty_instances(instances)
             return dataset_dict
 
         return mapper
-        
+
     @classmethod
     def get_test_mapper(cls, cfg):
         def mapper(dataset_dict):
@@ -1078,7 +1108,9 @@ class CopyPasteRGBTrainer(DefaultTrainer):
                 for obj in dataset_dict.pop("annotations")
                 if obj.get("iscrowd", 0) == 0
             ]
-            instances = utils.annotations_to_instances(annos, data.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT)
+            instances = utils.annotations_to_instances(
+                annos, data.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT
+            )
             dataset_dict["instances"] = utils.filter_empty_instances(instances)
             return dataset_dict
 
@@ -1094,7 +1126,7 @@ class CopyPasteRGBTrainer(DefaultTrainer):
     def build_test_loader(cls, cfg, dataset_name):
         mapper = cls.get_test_mapper(cfg)
         return build_detection_test_loader(cfg, dataset_name, mapper=mapper)
-    
+
     @classmethod
     def build_evaluator(cls, cfg, dataset_name):
         return COCOEvaluator(dataset_name)
@@ -1115,46 +1147,47 @@ class RGBDTrainer(DefaultTrainer):
             # it will be modified by code below
             dataset_dict = copy.deepcopy(dataset_dict)
             data = cv2.imread(dataset_dict["file_name"], cv2.IMREAD_UNCHANGED)
-            #data[:, :, 3] = np.zeros(data.shape[:2])
-            #data = Image.fromarray(data)
+            # data[:, :, 3] = np.zeros(data.shape[:2])
+            # data = Image.fromarray(data)
             if input_format == "RGBD":
                 data[..., [0, 2]] = data[..., [2, 0]]
             elif input_format == "RGBRD":
                 data[..., [0, 2]] = data[..., [2, 0]]
-                data = data.astype(np.float32)          
-            
+                data = data.astype(np.float32)
+
             min_size = cfg.INPUT.MIN_SIZE_TRAIN
             max_size = cfg.INPUT.MAX_SIZE_TRAIN
             sample_style = "choice"
-                                
+
             transform_list = [
                 T.ResizeShortestEdge(min_size, max_size, sample_style),
                 T.RandomBrightness(0.8, 1.8, input_format),
                 T.RandomContrast(0.7, 1.6, input_format),
                 T.RandomSaturation(0.6, 1.8, input_format),
-                #T.RandomRotation(angle=[-180, 180]),
+                # T.RandomRotation(angle=[-180, 180]),
                 T.RandomLighting(0.7, input_format),
                 T.RandomFlip(prob=0.4, horizontal=False, vertical=True),
             ]
 
             utils.check_image_size(dataset_dict, data)
 
-
             image, transforms = T.apply_transform_gens(transform_list, data)
             dataset_dict["image"] = torch.as_tensor(image.transpose(2, 0, 1).astype("float32"))
-            #print(dataset_dict["image"].shape)
-            #print(dataset_dict["height"], dataset_dict["width"])
+            # print(dataset_dict["image"].shape)
+            # print(dataset_dict["height"], dataset_dict["width"])
             annos = [
                 utils.transform_instance_annotations(obj, transforms, image.shape[:2])
                 for obj in dataset_dict.pop("annotations")
                 if obj.get("iscrowd", 0) == 0
             ]
-            instances = utils.annotations_to_instances(annos, image.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT)
+            instances = utils.annotations_to_instances(
+                annos, image.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT
+            )
             dataset_dict["instances"] = utils.filter_empty_instances(instances)
             return dataset_dict
 
         return depth_mapper
-        
+
     @classmethod
     def get_test_depth_mapper(cls, cfg):
         def depth_mapper(dataset_dict):
@@ -1165,7 +1198,7 @@ class RGBDTrainer(DefaultTrainer):
                 data[..., [0, 2]] = data[..., [2, 0]]
             elif input_format == "RGBRD":
                 data[..., [0, 2]] = data[..., [2, 0]]
-                data = data.astype(np.float32)    
+                data = data.astype(np.float32)
 
             min_size = cfg.INPUT.MIN_SIZE_TEST
             max_size = cfg.INPUT.MAX_SIZE_TEST
@@ -1183,13 +1216,13 @@ class RGBDTrainer(DefaultTrainer):
                 for obj in dataset_dict.pop("annotations")
                 if obj.get("iscrowd", 0) == 0
             ]
-            instances = utils.annotations_to_instances(annos, data.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT)
+            instances = utils.annotations_to_instances(
+                annos, data.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT
+            )
             dataset_dict["instances"] = utils.filter_empty_instances(instances)
             return dataset_dict
 
         return depth_mapper
-    
-    
 
     @classmethod
     def build_train_loader(cls, cfg, mapper=None):
@@ -1201,12 +1234,12 @@ class RGBDTrainer(DefaultTrainer):
     def build_test_loader(cls, cfg, dataset_name):
         mapper = cls.get_test_depth_mapper(cfg)
         return build_detection_test_loader(cfg, dataset_name, mapper=mapper)
-    
+
     @classmethod
     def build_evaluator(cls, cfg, dataset_name):
         return COCOEvaluator(dataset_name)
 
-    
+
 class DepthTrainer(DefaultTrainer):
     """
     We use the "DefaultTrainer" which contains a number pre-defined logic for
@@ -1219,7 +1252,7 @@ class DepthTrainer(DefaultTrainer):
     def get_depth_mapper(cls, cfg):
         def depth_mapper(dataset_dict):
             input_format = cfg.INPUT.FORMAT
-            # it will be modified by code below                
+            # it will be modified by code below
             dataset_dict = copy.deepcopy(dataset_dict)
             data = cv2.imread(dataset_dict["file_name"], cv2.IMREAD_UNCHANGED)
             if data is None:
@@ -1233,38 +1266,44 @@ class DepthTrainer(DefaultTrainer):
                     data = np.copy(data[:, :, 1:])
             else:
                 raise NotImplementedError("data is not 4 channels")
-            
+
             min_size = cfg.INPUT.MIN_SIZE_TRAIN
             max_size = cfg.INPUT.MAX_SIZE_TRAIN
             sample_style = "choice"
             transform_list = [
-                T.ResizeShortestEdge(min_size, max_size, sample_style),#it makes the array unwriteable for some reasons
-                #T.RandomRotation(angle=[-180, 180]),
-                #T.Resize((480, 640)),
+                T.ResizeShortestEdge(
+                    min_size, max_size, sample_style
+                ),  # it makes the array unwriteable for some reasons
+                # T.RandomRotation(angle=[-180, 180]),
+                # T.Resize((480, 640)),
                 T.RandomFlip(prob=0.4, horizontal=False, vertical=True),
             ]
 
             image, transforms = T.apply_transform_gens(transform_list, data)
             """if input_format == "D": 
                 image = image[:, :, np.newaxis]"""
-            dataset_dict["image"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1).astype("float32")))
+            dataset_dict["image"] = torch.as_tensor(
+                np.ascontiguousarray(image.transpose(2, 0, 1).astype("float32"))
+            )
 
             annos = [
                 utils.transform_instance_annotations(obj, transforms, image.shape[:2])
                 for obj in dataset_dict.pop("annotations")
                 if obj.get("iscrowd", 0) == 0
             ]
-            instances = utils.annotations_to_instances(annos, image.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT)
+            instances = utils.annotations_to_instances(
+                annos, image.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT
+            )
             dataset_dict["instances"] = utils.filter_empty_instances(instances)
             return dataset_dict
 
         return depth_mapper
-    
+
     @classmethod
     def get_test_depth_mapper(cls, cfg):
         def depth_mapper(dataset_dict):
             input_format = cfg.INPUT.FORMAT
-            # it will be modified by code below                
+            # it will be modified by code below
             dataset_dict = copy.deepcopy(dataset_dict)
             data = cv2.imread(dataset_dict["file_name"], cv2.IMREAD_UNCHANGED)
             if data is None:
@@ -1278,7 +1317,7 @@ class DepthTrainer(DefaultTrainer):
                     data = data[:, :, 1:]
             else:
                 raise NotImplementedError("data is not 4 channels")
-            
+
             min_size = cfg.INPUT.MIN_SIZE_TEST
             max_size = cfg.INPUT.MAX_SIZE_TEST
             sample_style = "choice"
@@ -1294,7 +1333,9 @@ class DepthTrainer(DefaultTrainer):
                 for obj in dataset_dict.pop("annotations")
                 if obj.get("iscrowd", 0) == 0
             ]
-            instances = utils.annotations_to_instances(annos, image.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT)
+            instances = utils.annotations_to_instances(
+                annos, image.shape[:2], mask_format=cfg.INPUT.MASK_FORMAT
+            )
             dataset_dict["instances"] = utils.filter_empty_instances(instances)
             return dataset_dict
 
@@ -1310,7 +1351,7 @@ class DepthTrainer(DefaultTrainer):
     def build_test_loader(cls, cfg, dataset_name):
         mapper = cls.get_test_depth_mapper(cfg)
         return build_detection_test_loader(cfg, dataset_name, mapper=mapper)
-    
+
     @classmethod
     def build_evaluator(cls, cfg, dataset_name):
         return COCOEvaluator(dataset_name)

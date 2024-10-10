@@ -4,10 +4,10 @@ import torch
 import pickle as pkl
 
 path = "/home/clara/detectronDocker/outputs/early_fusion_DRCNN-FPN-attention-relu_full_training_from_scratch/model_final.pth"
-file = open(path,'rb')
-#file = open("/home/clara/detectronDocker/outputs/model_RGBD5000/model_final.pth", "rb")
-#file = open("/home/clara/Downloads/model_final_f10217.pkl",'rb')
-#model = pkl.load(file)
+file = open(path, "rb")
+# file = open("/home/clara/detectronDocker/outputs/model_RGBD5000/model_final.pth", "rb")
+# file = open("/home/clara/Downloads/model_final_f10217.pkl",'rb')
+# model = pkl.load(file)
 backbone = 0
 other = 0
 total = 0
@@ -21,20 +21,22 @@ if path.endswith(".pth"):
     for k in model["model"].keys():
         v = model["model"][k]
         if k.startswith("backbone"):
-            backbone+=torch.numel(v)
+            backbone += torch.numel(v)
             total += torch.numel(v)
             if "resnet1" in k:
                 resnet1 += torch.numel(v)
-                print(k, torch.numel(v), torch.numel(model["model"][k.replace("resnet1", "resnet2")]))
+                print(
+                    k, torch.numel(v), torch.numel(model["model"][k.replace("resnet1", "resnet2")])
+                )
             elif "resnet2" in k:
                 resnet2 += torch.numel(v)
             elif "fusion" in k:
                 fusion += torch.numel(v)
         else:
-            other+=torch.numel(v)
+            other += torch.numel(v)
             total += torch.numel(v)
         sizes[k] = torch.numel(v)
-        #print(k, torch.numel(v))
+        # print(k, torch.numel(v))
 elif path.endswith(".pkl"):
     model = pkl.load(file)
     for k in model["model"].keys():
@@ -42,7 +44,7 @@ elif path.endswith(".pkl"):
         if "fusion_layer" in k and "bias" in k:
             print(k, torch.sum(torch.abs(v)))
         if k.startswith("backbone"):
-            backbone+=v.size
+            backbone += v.size
             total += v.size
             if "resnet1" in k:
                 resnet1 += v.size
@@ -51,7 +53,7 @@ elif path.endswith(".pkl"):
             elif "fusion" in k:
                 fusion += v.size
         else:
-            other+=v.size
+            other += v.size
             total += v.size
         print(k, v.size)
 

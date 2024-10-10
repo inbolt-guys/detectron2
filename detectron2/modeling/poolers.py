@@ -49,8 +49,14 @@ def assign_boxes_to_levels(
             `self.min_level + i`).
     """
     box_sizes = torch.sqrt(cat([boxes.area() for boxes in box_lists]))
-    box_second_backbone = cat([boxes.isSecondBackbone if hasattr(boxes, "isSecondBackbone") else torch.Tensor([False])
-                               .repeat(boxes.tensor.shape[0]) for boxes in box_lists]).to(device=box_sizes.device)
+    box_second_backbone = cat(
+        [
+            boxes.isSecondBackbone
+            if hasattr(boxes, "isSecondBackbone")
+            else torch.Tensor([False]).repeat(boxes.tensor.shape[0])
+            for boxes in box_lists
+        ]
+    ).to(device=box_sizes.device)
     nbLevels = max_level - min_level + 1
     """if box_second_backbone.nonzero().numel() > 0:
         level_assignments = torch.floor(
@@ -66,8 +72,8 @@ def assign_boxes_to_levels(
     # for the available feature maps
     level_assignments = torch.clamp(level_assignments, min=min_level, max=max_level)
     # FIXME : WORK ONLY WITH EARLY FUSION MODELS
-    # The last part is commented so the quantization process is working for early fusion model. If you want to use other models please uncomment the last part. 
-    return level_assignments.to(torch.int64) - min_level   # + nbLevels * box_second_backbone 
+    # The last part is commented so the quantization process is working for early fusion model. If you want to use other models please uncomment the last part.
+    return level_assignments.to(torch.int64) - min_level  # + nbLevels * box_second_backbone
 
 
 # script the module to avoid hardcoded device type
@@ -273,6 +279,7 @@ class ROIPooler(nn.Module):
 
         return output
 
+
 class ROIDoubleBackbonePooler(nn.Module):
     """
     Region of interest feature map pooler that supports pooling from one or more
@@ -357,9 +364,9 @@ class ROIDoubleBackbonePooler(nn.Module):
         ), "Featuremap stride is not power of 2!"
         self.min_level = int(min_level)
         self.max_level = int(max_level)
-        #assert (
+        # assert (
         #    len(scales)/2 == self.max_level - self.min_level + 1
-        #), "[ROIPooler] Sizes of input featuremaps do not form a pyramid!"
+        # ), "[ROIPooler] Sizes of input featuremaps do not form a pyramid!"
         assert 0 <= self.min_level and self.min_level <= self.max_level
         self.canonical_level = canonical_level
         assert canonical_box_size > 0
@@ -406,7 +413,7 @@ class ROIDoubleBackbonePooler(nn.Module):
 
         if num_level_assignments == 1:
             return self.level_poolers[0](x[0], pooler_fmt_boxes)
-        
+
         level_assignments = assign_boxes_to_levels(
             box_lists, self.min_level, self.max_level, self.canonical_box_size, self.canonical_level
         )
@@ -415,7 +422,6 @@ class ROIDoubleBackbonePooler(nn.Module):
         output_size = self.output_size[0]
 
         output = _create_zeros(pooler_fmt_boxes, num_channels, output_size, output_size, x[0])
-
 
         for level, pooler in enumerate(self.level_poolers):
             inds = nonzero_tuple(level_assignments == level)[0]

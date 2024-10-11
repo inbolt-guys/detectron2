@@ -152,7 +152,9 @@ class Instances:
         raise NotImplementedError("`Instances` object is not iterable!")
 
     @staticmethod
-    def cat(instance_lists: List["Instances"], secondInstanceIsGTAndisSecondBackbone: bool = False) -> "Instances":
+    def cat(
+        instance_lists: List["Instances"], secondInstanceIsGTAndisSecondBackbone: bool = False
+    ) -> "Instances":
         """
         Args:
             instance_lists (list[Instances])
@@ -165,7 +167,9 @@ class Instances:
         if len(instance_lists) == 1:
             return instance_lists[0]
         if secondInstanceIsGTAndisSecondBackbone:
-            assert len(instance_lists) == 2, "the list of instances is not proposals and gt, shouldn't have secondInstanceIsGTAndisSecondBackbone as True"
+            assert (
+                len(instance_lists) == 2
+            ), "the list of instances is not proposals and gt, shouldn't have secondInstanceIsGTAndisSecondBackbone as True"
             assert hasattr(instance_lists[1], "gt_boxes"), "gt instances does not contains gt_boxes"
 
         image_size = instance_lists[0].image_size

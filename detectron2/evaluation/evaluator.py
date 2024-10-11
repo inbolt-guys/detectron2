@@ -105,7 +105,7 @@ def inference_on_dataset(
     data_loader,
     evaluator: Union[DatasetEvaluator, List[DatasetEvaluator], None],
     callbacks=None,
-    return_inference_time = False
+    return_inference_time=False,
 ):
     """
     Run model on the data_loader and evaluate the metrics with evaluator.

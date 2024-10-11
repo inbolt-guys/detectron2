@@ -25,18 +25,16 @@ def add_mpvit_config(cfg):
     # Output features from CoaT backbone.
     _C.MODEL.MPVIT.OUT_FEATURES = ["stage2", "stage3", "stage4", "stage5"]
 
-
     # Options: FrozenBN, GN, "SyncBN", "BN"
     _C.MODEL.MPVIT.NORM = "SyncBN"
 
-    _C.MODEL.MPVIT.DROP_PATH = 0.
+    _C.MODEL.MPVIT.DROP_PATH = 0.0
 
     _C.MODEL.MPVIT.MODEL_KWARGS = "{}"
 
     _C.SOLVER.OPTIMIZER = "ADAMW"
 
     _C.SOLVER.BACKBONE_MULTIPLIER = 1.0
-
 
     _C.AUG = CN()
 

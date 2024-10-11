@@ -202,6 +202,7 @@ class RPN(nn.Module):
         loss_weight: Union[float, Dict[str, float]] = 1.0,
         box_reg_loss_type: str = "smooth_l1",
         smooth_l1_beta: float = 0.0,
+        images_size: list[Tuple[int, int]] = [(640, 853)],
     ):
         """
         NOTE: this interface is experimental.
@@ -254,6 +255,7 @@ class RPN(nn.Module):
         self.loss_weight = loss_weight
         self.box_reg_loss_type = box_reg_loss_type
         self.smooth_l1_beta = smooth_l1_beta
+        self.images_size = images_size
 
     @classmethod
     def from_config(cls, cfg, input_shape: Dict[str, ShapeSpec]):
@@ -282,6 +284,9 @@ class RPN(nn.Module):
             cfg.MODEL.RPN.IOU_THRESHOLDS, cfg.MODEL.RPN.IOU_LABELS, allow_low_quality_matches=True
         )
         ret["head"] = build_rpn_head(cfg, [input_shape[f] for f in in_features])
+
+        ret["images_size"] = cfg.INPUT.IMAGE_SIZE_AFTER_RESIZE
+
         return ret
 
     def _subsample_labels(self, label):
@@ -430,10 +435,9 @@ class RPN(nn.Module):
 
     def forward(
         self,
-        images: ImageList,
         features: Dict[str, torch.Tensor],
         gt_instances: Optional[List[Instances]] = None,
-        doubleBackbone: bool = False
+        doubleBackbone: bool = False,
     ):
         """
         Args:
@@ -476,7 +480,7 @@ class RPN(nn.Module):
         else:
             losses = {}
         proposals = self.predict_proposals(
-            anchors, pred_objectness_logits, pred_anchor_deltas, images.image_sizes, doubleBackbone
+            anchors, pred_objectness_logits, pred_anchor_deltas, self.images_size, doubleBackbone
         )
         return proposals, losses
 
@@ -486,7 +490,7 @@ class RPN(nn.Module):
         pred_objectness_logits: List[torch.Tensor],
         pred_anchor_deltas: List[torch.Tensor],
         image_sizes: List[Tuple[int, int]],
-        doubleBackbone: bool = False
+        doubleBackbone: bool = False,
     ):
         """
         Decode all the predicted box regression deltas to proposals. Find the top proposals
@@ -511,7 +515,7 @@ class RPN(nn.Module):
                 self.post_nms_topk[self.training],
                 self.min_box_size,
                 self.training,
-                doubleBackbone
+                doubleBackbone,
             )
 
     def _decode_proposals(self, anchors: List[Boxes], pred_anchor_deltas: List[torch.Tensor]):

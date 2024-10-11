@@ -37,18 +37,19 @@ def register_dataset(dataset_name: str, img_dir: str, annotations_file: str = No
         categories = json.load(f)["categories"]
         MetadataCatalog.get(dataset_name).set(thing_classes=[cat["name"] for cat in categories])
 
+
 if __name__ == "__main__":
     setup_logger()
 
     dataset_name = "rocket_wheel_4_instances_4_poses"
     dataset_folder = f"/app/detectronDocker/dataset_for_detectron/rocket_steel_all_datasets/{dataset_name}/rgbrd/"
-    dataset_annotations = dataset_folder+"annotations.json"
+    dataset_annotations = dataset_folder + "annotations.json"
     dataset_images = dataset_folder
     register_dataset(dataset_name, dataset_images, annotations_file=dataset_annotations)
 
 model_names = ["early_fusion_new_datasets_normalized_input_no_OCID_FUSE_IN_NOTHING"]
-#model_names = glob.glob("/app/detectronDocker/outputs/*")
-#model_names = [os.path.basename(item) for item in model_names if os.path.isdir(item)]
+# model_names = glob.glob("/app/detectronDocker/outputs/*")
+# model_names = [os.path.basename(item) for item in model_names if os.path.isdir(item)]
 for model_name in model_names:
     model_path = os.path.join("/app/detectronDocker/outputs", model_name)
     config_path = os.path.join(model_path, "config.yaml")
@@ -67,8 +68,7 @@ for model_name in model_names:
 
     output_dir = cfg.OUTPUT_DIR + "_finetuned_on_" + dataset_name
     cfg.DATALOADER.SAMPLER_TRAIN = "TrainingSampler"
-    cfg.DATASETS.TRAIN_REPEAT_FACTOR = [
-    ]
+    cfg.DATASETS.TRAIN_REPEAT_FACTOR = []
     cfg.DATASETS.TRAIN = (dataset_name,)
 
     hardware = "cuda" if torch.cuda.is_available() else "cpu"
@@ -78,11 +78,8 @@ for model_name in model_names:
         hardware=hardware,
     )
 
-
     pipeline.prepare_training(resume=False)
     trainer = pipeline.trainer
 
     trainer.train()
     pipeline.save_config()
-
-

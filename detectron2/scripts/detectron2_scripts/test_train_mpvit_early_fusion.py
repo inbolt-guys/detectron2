@@ -23,7 +23,7 @@ if __name__ == "__main__":
     cfg.merge_from_file("/app/detectronDocker/detectron2/configs/MPViT/mpvit_early_fusion.yaml")
     cfg.INPUT.FORMAT = "RGBD"
     num_gpu = 1
-    bs = (num_gpu * 2)    
+    bs = num_gpu * 2
     output_dir = "/app/detectronDocker/outputs/test_mpvit_early_fusion"
     cfg.SOLVER.MAX_TO_KEEP = 10
     cfg.SOLVER.CHECKPOINT_PERIOD = 100_000
@@ -31,10 +31,10 @@ if __name__ == "__main__":
     cfg.WRITER_PERIOD = 1
     cfg.EVAl_AFTER_TRAIN = False
 
-    cfg.DATASETS.TRAIN = ("coco_2017_depth_val")
+    cfg.DATASETS.TRAIN = "coco_2017_depth_val"
 
     ## train model ##
-    #coco_folder = "/app/nas/R&D/clara/detectronDocker/dataset_for_detectron/coco2017_depth"
+    # coco_folder = "/app/nas/R&D/clara/detectronDocker/dataset_for_detectron/coco2017_depth"
     coco_folder = "/app/detectronDocker/dataset_for_detectron/coco2017_depth"
     coco_train_folder = coco_folder + "/RGBD/train2017"
     coco_val_folder = coco_folder + "/RGBD/val2017"
@@ -47,12 +47,18 @@ if __name__ == "__main__":
         hardware=hardware,
     )
 
-    pipeline.register_dataset("coco_2017_depth_train", 
-                              coco_train_folder, annotations_file=coco_folder + "/RGBD/annotations/instances_train2017.json")
-    pipeline.register_dataset("coco_2017_depth_val", 
-                              coco_val_folder, annotations_file=coco_folder + "/RGBD/annotations/instances_val2017.json")
-    
-    #Freeze everything in the backbones to learn the fusion steps
+    pipeline.register_dataset(
+        "coco_2017_depth_train",
+        coco_train_folder,
+        annotations_file=coco_folder + "/RGBD/annotations/instances_train2017.json",
+    )
+    pipeline.register_dataset(
+        "coco_2017_depth_val",
+        coco_val_folder,
+        annotations_file=coco_folder + "/RGBD/annotations/instances_val2017.json",
+    )
+
+    # Freeze everything in the backbones to learn the fusion steps
     cfg.SOLVER.BASE_LR = 0.02 * bs / 16  # pick a good LR
     cfg.SOLVER.STEPS = (1_000_000, 1_300_000, 1_600_000)
     cfg.SOLVER.MAX_ITER = 1_800_000
@@ -60,7 +66,7 @@ if __name__ == "__main__":
     cfg.MODEL.PIXEL_MEAN = [103.530, 116.280, 123.675, 155.265]
 
     cfg.MODEL.UNFREEZE_SCHEDULE = []
-    
+
     cfg.MODEL.UNFREEZE_ITERS = []
 
     pipeline.prepare_training(resume=True)
@@ -68,5 +74,3 @@ if __name__ == "__main__":
 
     trainer.train()
     pipeline.save_config()
-
-

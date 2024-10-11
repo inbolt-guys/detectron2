@@ -13,7 +13,11 @@ from .resnet import (
     BottleneckBlock,
 )
 from .double_resnet import build_double_resnet_backbone
-from .MPViT import build_mpvit_double_fpn_backbone, build_mpvit_fpn_backbone, build_double_mpvit_fpn_backbone
+from .MPViT import (
+    build_mpvit_double_fpn_backbone,
+    build_mpvit_fpn_backbone,
+    build_double_mpvit_fpn_backbone,
+)
 from .MPViT.double_mpvit_early_fusion import build_double_mpvit_fpn_backbone
 from .vit import ViT, SimpleFeaturePyramid, get_vit_lr_decay_rate
 from .mvit import MViT

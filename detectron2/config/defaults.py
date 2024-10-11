@@ -597,12 +597,15 @@ _C.SOLVER.CLIP_GRADIENTS.NORM_TYPE = 2.0
 # Note that this does not change model's inference behavior.
 # To use AMP in inference, run inference under autocast()
 _C.SOLVER.AMP = CN({"ENABLED": False})
-_C.SOLVER.LOSS_WEIGHTS = CN({
-            'loss_cls': 1.0,
-            'loss_box_reg': 1.0,
-            'loss_mask': 1.0,
-            'loss_rpn_cls': 1.0,
-            'loss_rpn_loc': 1.0})
+_C.SOLVER.LOSS_WEIGHTS = CN(
+    {
+        "loss_cls": 1.0,
+        "loss_box_reg": 1.0,
+        "loss_mask": 1.0,
+        "loss_rpn_cls": 1.0,
+        "loss_rpn_loc": 1.0,
+    }
+)
 
 # ---------------------------------------------------------------------------- #
 # Specific test options

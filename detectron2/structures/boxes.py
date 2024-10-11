@@ -244,7 +244,9 @@ class Boxes:
         b = Boxes(self.tensor[item])
         if hasattr(self, "isSecondBackbone"):
             b.isSecondBackbone = self.isSecondBackbone[item]
-        assert b.tensor.dim() == 2, "Indexing on Boxes with {} failed to return a matrix!".format(item)
+        assert b.tensor.dim() == 2, "Indexing on Boxes with {} failed to return a matrix!".format(
+            item
+        )
         return b
 
     def __len__(self) -> int:
@@ -287,7 +289,9 @@ class Boxes:
         self.tensor[:, 1::2] *= scale_y
 
     @classmethod
-    def cat(cls, boxes_list: List["Boxes"], secondInstanceIsGTAndisSecondBackbone: bool = False) -> "Boxes":
+    def cat(
+        cls, boxes_list: List["Boxes"], secondInstanceIsGTAndisSecondBackbone: bool = False
+    ) -> "Boxes":
         """
         Concatenates a list of Boxes into a single Boxes
 
@@ -304,14 +308,20 @@ class Boxes:
         # use torch.cat (v.s. layers.cat) so the returned boxes never share storage with input
         cat_boxes = cls(torch.cat([b.tensor for b in boxes_list], dim=0))
         if secondInstanceIsGTAndisSecondBackbone:
-            assert hasattr(boxes_list[0], "isSecondBackbone") and not hasattr(boxes_list[1], "isSecondBackbone"), "box list must be [proposals, gt]"
+            assert hasattr(boxes_list[0], "isSecondBackbone") and not hasattr(
+                boxes_list[1], "isSecondBackbone"
+            ), "box list must be [proposals, gt]"
             nb_gt_boxes = boxes_list[1].tensor.shape[0]
             boxes_list[1] = Boxes(torch.cat((boxes_list[1].tensor, boxes_list[1].tensor), 0))
             x = torch.BoolTensor([False, True])
-            boxes_list[1].isSecondBackbone = x.repeat_interleave(nb_gt_boxes).to(device=boxes_list[0].isSecondBackbone.device)
+            boxes_list[1].isSecondBackbone = x.repeat_interleave(nb_gt_boxes).to(
+                device=boxes_list[0].isSecondBackbone.device
+            )
 
         hasSecondBackbone = [hasattr(b, "isSecondBackbone") for b in boxes_list]
-        assert not any(hasSecondBackbone) or all(hasSecondBackbone), "trying to cat some boxes with isSecondBackbone with some without"
+        assert not any(hasSecondBackbone) or all(
+            hasSecondBackbone
+        ), "trying to cat some boxes with isSecondBackbone with some without"
 
         if any(hasSecondBackbone):
             cat_boxes.isSecondBackbone = torch.cat([b.isSecondBackbone for b in boxes_list])

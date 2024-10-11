@@ -121,6 +121,7 @@ def create_image_annotation(file_name, width, height, image_id):
 
     return images
 
+
 def crop_coco_bbox(bbox, image_height, image_width):
     box_min_x, box_min_y, box_width, box_height = bbox[0], bbox[1], bbox[2], bbox[3]
     if box_min_x + box_width > image_width:
@@ -130,7 +131,9 @@ def crop_coco_bbox(bbox, image_height, image_width):
     return [box_min_x, box_min_y, box_width, box_height]
 
 
-def create_annotation_format(image_id, category_id, annotation_id, polygon=None, segmentation=None, encoded_mask = None):
+def create_annotation_format(
+    image_id, category_id, annotation_id, polygon=None, segmentation=None, encoded_mask=None
+):
     """
     Create annotation format required by COCO.
 
@@ -155,7 +158,7 @@ def create_annotation_format(image_id, category_id, annotation_id, polygon=None,
         area = int(mask_util.area(encoded_mask))
         bbox = mask_util.toBbox(encoded_mask).tolist()
         segmentation = encoded_mask
-        segmentation['counts'] = segmentation['counts'].decode('utf-8')
+        segmentation["counts"] = segmentation["counts"].decode("utf-8")
 
     bbox
 
@@ -208,28 +211,42 @@ def get_points(poly):
     yy.append(yy[0])
     return (xx, yy)
 
-def normalize_depth(depth, min_depth = None, max_depth = None, reverse = True, percentileForMin = 5, percentileForMax = 85, 
-                    scaleFactorForMin = 1/1.5, valueWhenLessThanMin = 255, valueWhenMoreThanMax = 255, valueWhenNoValue = 255):
-        noValueMask = depth == 0
-        if not max_depth:
-            max_depth = np.percentile(depth[np.logical_not(noValueMask)], percentileForMax)
-        if not min_depth:
-            min_depth = np.percentile(depth[np.logical_not(noValueMask)], percentileForMin)*scaleFactorForMin
 
-        depth_normalized = np.copy(depth)
+def normalize_depth(
+    depth,
+    min_depth=None,
+    max_depth=None,
+    reverse=True,
+    percentileForMin=5,
+    percentileForMax=85,
+    scaleFactorForMin=1 / 1.5,
+    valueWhenLessThanMin=255,
+    valueWhenMoreThanMax=255,
+    valueWhenNoValue=255,
+):
+    noValueMask = depth == 0
+    if not max_depth:
+        max_depth = np.percentile(depth[np.logical_not(noValueMask)], percentileForMax)
+    if not min_depth:
+        min_depth = (
+            np.percentile(depth[np.logical_not(noValueMask)], percentileForMin) * scaleFactorForMin
+        )
 
-        lessThanMinMask = np.logical_and(depth_normalized < min_depth, np.logical_not(noValueMask))
-        moreThanMaxMask = depth_normalized > max_depth
+    depth_normalized = np.copy(depth)
 
-        depth_normalized = (depth_normalized-min_depth)/(max_depth-min_depth)*255
+    lessThanMinMask = np.logical_and(depth_normalized < min_depth, np.logical_not(noValueMask))
+    moreThanMaxMask = depth_normalized > max_depth
 
-        depth_normalized[noValueMask] = valueWhenNoValue
-        depth_normalized[lessThanMinMask] = valueWhenLessThanMin
-        depth_normalized[moreThanMaxMask] = valueWhenMoreThanMax
+    depth_normalized = (depth_normalized - min_depth) / (max_depth - min_depth) * 255
 
-        if reverse: depth_normalized = 255 - depth_normalized
+    depth_normalized[noValueMask] = valueWhenNoValue
+    depth_normalized[lessThanMinMask] = valueWhenLessThanMin
+    depth_normalized[moreThanMaxMask] = valueWhenMoreThanMax
 
-        return depth_normalized.astype(np.uint8)
+    if reverse:
+        depth_normalized = 255 - depth_normalized
+
+    return depth_normalized.astype(np.uint8)
 
 
 def hole_fill_depth(depth_map):
@@ -244,14 +261,16 @@ def hole_fill_depth(depth_map):
     """
     # Create a mask of the holes (where depth value is 0)
     mask = (depth_map == 0).astype(np.uint8) * 255
-    
+
     # Convert the depth map to float32 for inpainting
     depth_map_float = depth_map.astype(np.float32)
-    
+
     # Use OpenCV's inpainting function to fill the holes
-    inpainted_depth_map_float = cv2.inpaint(depth_map_float, mask, inpaintRadius=3, flags=cv2.INPAINT_TELEA)
-    
+    inpainted_depth_map_float = cv2.inpaint(
+        depth_map_float, mask, inpaintRadius=3, flags=cv2.INPAINT_TELEA
+    )
+
     # Convert the inpainted depth map back to uint16
     inpainted_depth_map = inpainted_depth_map_float.astype(np.uint16)
-    
+
     return inpainted_depth_map

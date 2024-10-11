@@ -8,8 +8,16 @@ from detectron2 import model_zoo
 from detectron2.config import get_cfg
 from detectron2.data import MetadataCatalog
 from detectron2.data.datasets import register_coco_instances
-from detectron2.engine import DefaultTrainer, RGBDTrainer, RGBDPredictor, DefaultPredictor, DepthTrainer, CopyPasteRGBTrainer
+from detectron2.engine import (
+    DefaultTrainer,
+    RGBDTrainer,
+    RGBDPredictor,
+    DefaultPredictor,
+    DepthTrainer,
+    CopyPasteRGBTrainer,
+)
 from detectron2.utils.logger import setup_logger
+
 
 class Pipeline:
     """
@@ -19,7 +27,7 @@ class Pipeline:
     def __init__(
         self,
         output_dir: str = None,
-        cfg = None,
+        cfg=None,
         hardware: str = None,
         **kwargs,
     ) -> None:
@@ -61,7 +69,7 @@ class Pipeline:
         """
         self.cfg.MODEL.DEVICE = self.hardware  # default is cuda
         if n_iter is not None:
-            self.cfg.SOLVER.MAX_ITER = int(n_iter) # needs to be given before build_predictor
+            self.cfg.SOLVER.MAX_ITER = int(n_iter)  # needs to be given before build_predictor
 
         """# This is the real "batch size" commonly known to deep learning people
         self.cfg.SOLVER.IMS_PER_BATCH = 2
@@ -69,10 +77,15 @@ class Pipeline:
         self.cfg.SOLVER.STEPS = []  # no learning rate decay"""
         if self.cfg.INPUT.FORMAT == "RGBD" or self.cfg.INPUT.FORMAT == "RGBRD":
             return RGBDTrainer(self.cfg)
-        if self.cfg.INPUT.FORMAT == "D" or self.cfg.INPUT.FORMAT == "N" or self.cfg.INPUT.FORMAT == "RD":
+        if (
+            self.cfg.INPUT.FORMAT == "D"
+            or self.cfg.INPUT.FORMAT == "N"
+            or self.cfg.INPUT.FORMAT == "RD"
+        ):
             return DepthTrainer(self.cfg)
         if self.cfg.INPUT.FORMAT == "RGB" or self.cfg.INPUT.FORMAT == "BGR":
             return DefaultTrainer(self.cfg)
+
     def setup_predictor(self):
         """
         Setup the predictor
@@ -90,8 +103,8 @@ class Pipeline:
         self.trainer.train()
         self.cfg.MODEL.WEIGHTS = os.path.join(self.cfg.OUTPUT_DIR, "model_final.pth")
         self.save_config()
-    
-    def prepare_training(self, n_iter=None, resume = False):
+
+    def prepare_training(self, n_iter=None, resume=False):
         """
         Train the model
         """
@@ -118,7 +131,7 @@ class Pipeline:
         self.cfg.DATASETS.TEST = ()"""
         with open(annotations_file) as f:
             categories = json.load(f)["categories"]
-            #self.cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(categories)
+            # self.cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(categories)
             MetadataCatalog.get(dataset_name).set(thing_classes=[cat["name"] for cat in categories])
 
     def evaluate(self):

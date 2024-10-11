@@ -42,7 +42,7 @@ class DRCNN(nn.Module):
         pixel_std: Tuple[float],
         input_format: Optional[str] = None,
         vis_period: int = 0,
-        mode: str = None
+        mode: str = None,
     ):
         """
         Args:
@@ -82,7 +82,7 @@ class DRCNN(nn.Module):
             "vis_period": cfg.VIS_PERIOD,
             "pixel_mean": cfg.MODEL.PIXEL_MEAN,
             "pixel_std": cfg.MODEL.PIXEL_STD,
-            "mode": cfg.MODEL.BACKBONE.MODE
+            "mode": cfg.MODEL.BACKBONE.MODE,
         }
 
     @property
@@ -162,7 +162,9 @@ class DRCNN(nn.Module):
         features = self.backbone(imagesRGB.tensor, imagesDepth.tensor)
 
         if self.proposal_generator is not None:
-            proposals, proposal_losses = self.proposal_generator(imagesRGB, features, gt_instances, self.mode == "simple")
+            proposals, proposal_losses = self.proposal_generator(
+                imagesRGB, features, gt_instances, self.mode == "simple"
+            )
         else:
             assert "proposals" in batched_inputs[0]
             proposals = [x["proposals"].to(self.device) for x in batched_inputs]
@@ -211,7 +213,7 @@ class DRCNN(nn.Module):
 
         if detected_instances is None:
             if self.proposal_generator is not None:
-                proposals, _ = self.proposal_generator(imagesRGB, features, None, self.mode == "simple")
+                proposals, _ = self.proposal_generator(features, None, self.mode == "simple")
                 rpn_time = time.time()
             else:
                 assert "proposals" in batched_inputs[0]
@@ -269,5 +271,3 @@ class DRCNN(nn.Module):
             r = detector_postprocess(results_per_image, height, width)
             processed_results.append({"instances": r})
         return processed_results
-
-

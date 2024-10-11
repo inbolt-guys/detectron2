@@ -50,7 +50,7 @@ def fast_rcnn_inference(
     score_thresh: float,
     nms_thresh: float,
     topk_per_image: int,
-    isSecondBackbones: List[torch.Tensor] = []
+    isSecondBackbones: List[torch.Tensor] = [],
 ):
     """
     Call `fast_rcnn_inference_single_image` for all images.
@@ -78,16 +78,29 @@ def fast_rcnn_inference(
             the corresponding boxes/scores index in [0, Ri) from the input, for image i.
     """
     if isSecondBackbones:
-            result_per_image = [
-        fast_rcnn_inference_single_image(
-            boxes_per_image, scores_per_image, image_shape, score_thresh, nms_thresh, topk_per_image, isSecondBackbone
-        )
-        for scores_per_image, boxes_per_image, image_shape, isSecondBackbone in zip(scores, boxes, image_shapes, isSecondBackbones)
-    ]
+        result_per_image = [
+            fast_rcnn_inference_single_image(
+                boxes_per_image,
+                scores_per_image,
+                image_shape,
+                score_thresh,
+                nms_thresh,
+                topk_per_image,
+                isSecondBackbone,
+            )
+            for scores_per_image, boxes_per_image, image_shape, isSecondBackbone in zip(
+                scores, boxes, image_shapes, isSecondBackbones
+            )
+        ]
     else:
         result_per_image = [
             fast_rcnn_inference_single_image(
-                boxes_per_image, scores_per_image, image_shape, score_thresh, nms_thresh, topk_per_image
+                boxes_per_image,
+                scores_per_image,
+                image_shape,
+                score_thresh,
+                nms_thresh,
+                topk_per_image,
             )
             for scores_per_image, boxes_per_image, image_shape in zip(scores, boxes, image_shapes)
         ]
@@ -131,7 +144,7 @@ def fast_rcnn_inference_single_image(
     score_thresh: float,
     nms_thresh: float,
     topk_per_image: int,
-    isSecondBackbone: torch.Tensor = None
+    isSecondBackbone: torch.Tensor = None,
 ):
     """
     Single-image inference. Return bounding-box detection results by thresholding
@@ -500,16 +513,16 @@ class FastRCNNOutputLayers(nn.Module):
                 self.test_score_thresh,
                 self.test_nms_thresh,
                 self.test_topk_per_image,
-                isSecondBackbone
+                isSecondBackbone,
             )
         return fast_rcnn_inference(
-                boxes,
-                scores,
-                image_shapes,
-                self.test_score_thresh,
-                self.test_nms_thresh,
-                self.test_topk_per_image,
-            )
+            boxes,
+            scores,
+            image_shapes,
+            self.test_score_thresh,
+            self.test_nms_thresh,
+            self.test_topk_per_image,
+        )
 
     def predict_boxes_for_gt_classes(self, predictions, proposals):
         """
